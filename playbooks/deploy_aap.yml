@@ -1,0 +1,149 @@
+---
+- name: Deploy AAP 2.6 to OpenShift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    aap_namespace: "ansible-automation-platform"
+    aap_instance_name: "aap"
+    aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
+
+  tasks:
+    - name: Ensure AAP Namespace exists
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ aap_namespace }}"
+
+    - name: Create Operator Group and Subscription
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1
+          kind: OperatorGroup
+          metadata:
+            name: ansible-automation-platform-operator
+            namespace: "{{ aap_namespace }}"
+          spec:
+            targetNamespaces:
+              - "{{ aap_namespace }}"
+
+    - name: Create AAP 2.6 Subscription
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: ansible-automation-platform
+            namespace: "{{ aap_namespace }}"
+          spec:
+            channel: 'stable-2.6'
+            installPlanApproval: Automatic
+            name: ansible-automation-platform-operator
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+
+    - name: Wait for AAP Operator CSV to succeed
+      kubernetes.core.k8s_info:
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        namespace: "{{ aap_namespace }}"
+      register: csv_list
+      until: >
+        csv_list.resources | selectattr('status.phase', 'defined') | selectattr('status.phase', 'equalto', 'Succeeded') | list | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Deploy Ansible Automation Platform Instance
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: aap.ansible.com/v1alpha1
+          kind: AnsibleAutomationPlatform
+          metadata:
+            name: "{{ aap_instance_name }}"
+            namespace: "{{ aap_namespace }}"
+          spec:
+            image_pull_policy: IfNotPresent
+            controller:
+              disabled: false
+              replicas: 2
+            eda:
+              disabled: true
+            hub:
+              disabled: true
+            lightspeed:
+              disabled: true
+
+    - name: Wait for Gateway Admin Secret to be created
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: aap-admin-password
+        namespace: "{{ aap_namespace }}"
+      register: gateway_secret
+      until: gateway_secret.resources | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Extract Gateway Admin Password
+      ansible.builtin.set_fact:
+        aap_password: "{{ gateway_secret.resources[0].data.password | b64decode }}"
+
+    - name: Get AAP Route URL
+      kubernetes.core.k8s_info:
+        api_version: route.openshift.io/v1
+        kind: Route
+        name: aap
+        namespace: "{{ aap_namespace }}"
+      register: aap_route
+      until: aap_route.resources | length > 0 and aap_route.resources[0].spec.host is defined
+      retries: 30
+      delay: 5
+
+    - name: Set AAP Host Fact
+      ansible.builtin.set_fact:
+        aap_host: "https://{{ aap_route.resources[0].spec.host }}"
+
+    - name: Wait for AAP Web Interface to respond
+      ansible.builtin.uri:
+        url: "{{ aap_host }}/api/controller/v2/ping/"
+        method: GET
+        status_code: [200]
+        validate_certs: false
+      register: ping_result
+      until: ping_result.status == 200
+      retries: 80
+      delay: 10
+
+    - name: Check if license manifest exists
+      ansible.builtin.stat:
+        path: "{{ aap_license_manifest }}"
+      register: manifest_stat
+
+    - name: Apply Subscription License Manifest
+      ansible.builtin.include_role:
+        name: infra.controller_configuration.license
+      vars:
+        controller_hostname: "{{ aap_host }}"
+        controller_username: "admin"
+        controller_password: "{{ aap_password }}"
+        controller_validate_certs: false
+        controller_license:
+          manifest_file: "{{ aap_license_manifest }}"
+      when: manifest_stat.stat.exists
+
+    - name: Display AAP Access Credentials
+      ansible.builtin.debug:
+        msg:
+          - "===================================================="
+          - "  AAP 2.6 Deployment & Licensing Complete!           "
+          - "===================================================="
+          - "  URL:      {{ aap_host }}"
+          - "  Username: admin"
+          - "  Password: {{ aap_password }}"
+          - "===================================================="

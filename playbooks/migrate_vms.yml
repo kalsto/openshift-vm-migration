@@ -1,0 +1,32 @@
+---
+- name: Execute OpenShift Virtualization VM Migration via Roles
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  # Injects AWX environment variables into every task and role run
+  environment:
+    K8S_AUTH_HOST: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
+    K8S_AUTH_API_KEY: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
+    K8S_AUTH_VERIFY_SSL: "false"
+
+  vars_files:
+    - vars/migration_config.yml
+
+  tasks:
+    - name: Ensure Target Namespace Exists
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ target_namespace }}"
+
+    - name: Provision Secrets, Providers, Maps, and Migration Plans
+      ansible.builtin.include_role:
+        name: infra.openshift_virtualization_migration.mtv_management
+
+    - name: Trigger Migration Executions and Monitor Progress
+      ansible.builtin.include_role:
+        name: infra.openshift_virtualization_migration.mtv_migrate

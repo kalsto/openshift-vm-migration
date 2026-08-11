@@ -1,0 +1,6 @@
+---
+collections:
+  - name: ansible.posix
+  - name: ansible.utils
+  - name: kubernetes.core
+  - name: infra.openshift_virtualization_migration

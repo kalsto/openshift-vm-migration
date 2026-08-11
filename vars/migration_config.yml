@@ -1,0 +1,96 @@
+---
+# OpenShift Cluster Authentication (Dynamic lookups from AWX environment)
+openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
+openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
+openshift_validate_certs: false
+
+# MTV and Target Namespaces
+mtv_namespace: "openshift-mtv"
+target_namespace: "{{ target_namespace | default('local-cluster') }}"
+
+# Role Provider Validation Flags
+provider: "vsphere"
+mtv_management_source_target: "vmware"
+mtv_management_destination_target: "host"
+mtv_management_provider_namespace: "{{ mtv_namespace }}"
+mtv_management_map_storage: true
+mtv_management_map_networks: true
+
+# vSphere Connection Details
+vsphere_url: "{{ vsphere_url }}"
+vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default(vsphere_user | default(''), true) }}"
+vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default(vsphere_password | default(''), true) }}"
+vsphere_insecure_skip_verify: true
+
+# Secret Definitions for MTV Providers
+mtv_secrets: &mtv_secrets
+  - name: "vsphere-credentials"
+    namespace: "{{ mtv_namespace }}"
+    user: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
+    insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
+    url: "{{ vsphere_url }}"
+mtv_management_secrets: *mtv_secrets
+
+# VMware Provider Definitions
+mtv_management_providers: &mtv_management_providers
+  - name: "vmware"
+    namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
+    url: "{{ vsphere_url }}"
+    secret: "vsphere-credentials"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
+
+# Network Mappings
+mtv_network_maps: &mtv_network_maps
+  - name: "vmware-host"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "vmware"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_port_group | default('segment-migrating-to-ocpvirt') }}"
+        destination:
+          type: "pod"
+mtv_management_network_maps: *mtv_network_maps
+
+# Storage Mappings
+mtv_storage_maps: &mtv_storage_maps
+  - name: "vmware-host"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "vmware"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_datastore | default('workloadshare') }}"
+        destination:
+          storageClass: "{{ target_storage_class | default('ocs-external-storagecluster-ceph-rbd') }}"
+mtv_management_storage_maps: *mtv_storage_maps
+
+# Migration Plans (For mtv_management)
+mtv_plans: &mtv_plans
+  - name: "vm-migration-plan"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "vmware"
+    destination_provider: "host"
+    network_map: "vmware-host"
+    storage_map: "vmware-host"
+    target_namespace: "{{ target_namespace }}"
+    vms: "{{ source_vms }}"
+mtv_management_plans: *mtv_plans
+
+# Migration Executions (Direct plan dictionary schema)
+mtv_migrate_migration_request:
+  plan_name: "vm-migration-plan"
+  mtv_namespace: "{{ mtv_namespace }}"
+  target_namespace: "{{ target_namespace }}"
+  source: "vmware"
+  destination: "host"
+  network_map: "vmware-host"
+  storage_map: "vmware-host"
+  start_migration: true
+  verify_plans_ready: true
+  verify_migrations_complete: true
+  vms: "{{ source_vms }}"
