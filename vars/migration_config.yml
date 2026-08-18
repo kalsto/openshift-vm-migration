@@ -6,7 +6,10 @@ openshift_validate_certs: false
 
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"
-target_namespace: "{{ target_namespace | default('local-cluster') }}"
+target_namespace: "local-cluster"
+
+# Plan Name
+migration_plan_name: "vm-migration-plan"
 
 # Role Provider Validation Flags
 provider: "vsphere"
@@ -16,11 +19,16 @@ mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: true
 mtv_management_map_networks: true
 
-# vSphere Connection Details
-vsphere_url: "{{ vsphere_url }}"
-vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default(vsphere_user | default(''), true) }}"
-vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default(vsphere_password | default(''), true) }}"
+# vSphere Infrastructure Details
+vsphere_url: "{{ vault_vsphere_url }}"
+vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default('', true) }}"
+vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default('', true) }}"
 vsphere_insecure_skip_verify: true
+
+# Port Group & Storage Class Definitions
+vsphere_port_group: "segment-migrating-to-ocpvirt"
+vsphere_datastore: "workloadshare"
+target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
 # Secret Definitions for MTV Providers
 mtv_secrets: &mtv_secrets
@@ -51,7 +59,7 @@ mtv_network_maps: &mtv_network_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_port_group | default('segment-migrating-to-ocpvirt') }}"
+          name: "{{ vsphere_port_group }}"
         destination:
           type: "pod"
 mtv_management_network_maps: *mtv_network_maps
@@ -64,14 +72,14 @@ mtv_storage_maps: &mtv_storage_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_datastore | default('workloadshare') }}"
+          name: "{{ vsphere_datastore }}"
         destination:
-          storageClass: "{{ target_storage_class | default('ocs-external-storagecluster-ceph-rbd') }}"
+          storageClass: "{{ target_storage_class }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
-# Migration Plans (For mtv_management)
+# Migration Plans (Injects source_vms passed from extra_vars)
 mtv_plans: &mtv_plans
-  - name: "vm-migration-plan"
+  - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
     source_provider: "vmware"
     destination_provider: "host"
@@ -81,9 +89,9 @@ mtv_plans: &mtv_plans
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions (Direct plan dictionary schema)
+# Migration Executions Request
 mtv_migrate_migration_request:
-  plan_name: "vm-migration-plan"
+  plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
   source: "vmware"

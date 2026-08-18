@@ -1,0 +1,40 @@
+---
+# ==============================================================================
+# Sample Vault Variables Template (Safe for Public Repositories)
+# File: vars/vault.example.yml
+# Copy this file to vars/vault.yml and populate it with real credentials.
+# ==============================================================================
+
+# Red Hat Automation Hub Offline Token
+vault_rh_offline_token: "<your_redhat_offline_token>"
+
+# ROSA OpenShift Cluster Credentials & Endpoints
+vault_openshift_username: "cluster-admin"
+vault_openshift_password: "<your_openshift_password>"
+vault_openshift_host: "https://api.<your_cluster_name>.<domain>.com:443"
+vault_openshift_console_url: "https://console-openshift-console.apps.<your_cluster_name>.<domain>.com"
+vault_fallback_aap_url: "https://aap-ansible-automation-platform.apps.<your_cluster_name>.<domain>.com"
+
+# AWS Credentials & Endpoints
+vault_aws_access_key: "<your_aws_access_key_id>"
+vault_aws_secret_key: "<your_aws_secret_access_key>"
+vault_aws_region: "us-east-2"
+vault_aws_console_url: "https://<your_aws_account_id>.signin.aws.amazon.com/console"
+
+# Automation Hub & Galaxy Endpoints
+vault_automation_hub_url: "https://console.redhat.com/api/automation-hub/content/published/"
+vault_automation_hub_auth_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+vault_galaxy_url: "https://galaxy.ansible.com/"
+
+# VMware vCenter / vSphere Credentials & Endpoints
+vault_vcenter_username: "<your_vcenter_username>"
+vault_vcenter_password: "<your_vcenter_password>"
+vault_vcenter_host: "vcenter.example.com"
+vault_vsphere_url: "https://vcenter.example.com/sdk"
+
+# Source Control / GitHub
+vault_github_scm_url: "git@github.com:<your-org>/<your-repo>.git"
+vault_github_deploy_key_private: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  <your_private_ssh_key_contents>
+  -----END OPENSSH PRIVATE KEY-----

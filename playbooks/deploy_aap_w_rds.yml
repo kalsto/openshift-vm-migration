@@ -1,0 +1,312 @@
+---
+- name: Deploy AAP 2.7 to OpenShift with External RDS Database & Custom Certs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  vars:
+    # Cluster Configuration Defaults (Override via -e)
+    openshift_username: "cluster-admin"
+    
+    # AAP Instance & Namespace Configuration
+    aap_namespace: "ansible-automation-platform"
+    aap_instance_name: "aap"
+    aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
+
+    # Optional Certificate File Paths (Checked at runtime)
+    custom_ca_cert_file: "{{ playbook_dir }}/../certs/internal-ca.crt"
+    custom_tls_cert_file: "{{ playbook_dir }}/../certs/tls.crt"
+    custom_tls_key_file: "{{ playbook_dir }}/../certs/tls.key"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Pre-check & OpenShift Authentication
+    # -------------------------------------------------------------------------
+    - name: Validate that required extra variables are passed via -e
+      ansible.builtin.assert:
+        that:
+          - openshift_host is defined and openshift_host | length > 0
+          - openshift_password is defined and openshift_password | length > 0
+        fail_msg: >-
+          Missing required extra vars! Please ensure both openshift_host 
+          and openshift_password are passed via -e flags.
+        success_msg: "All required OpenShift extra variables verified."
+
+    - name: Authenticate against OpenShift OAuth to obtain API Key
+      kubernetes.core.k8s_auth:
+        host: "{{ openshift_host }}"
+        username: "{{ openshift_username }}"
+        password: "{{ openshift_password }}"
+        validate_certs: false
+      register: k8s_auth_results
+
+    - name: Set OpenShift API Key Fact
+      ansible.builtin.set_fact:
+        k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    # -------------------------------------------------------------------------
+    # Namespace & Certificate Secrets Provisioning
+    # -------------------------------------------------------------------------
+    - name: Ensure AAP Namespace exists
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ aap_namespace }}"
+
+    - name: Check for internal CA certificate file
+      ansible.builtin.stat:
+        path: "{{ custom_ca_cert_file }}"
+      register: ca_cert_stat
+
+    - name: Create Internal CA Trust Bundle Secret in OpenShift
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: aap-custom-ca-secret
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            bundle-ca.crt: "{{ lookup('file', custom_ca_cert_file) }}"
+      when: ca_cert_stat.stat.exists
+
+    - name: Check for custom Route TLS cert and key files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ custom_tls_cert_file }}"
+        - "{{ custom_tls_key_file }}"
+      register: tls_cert_stats
+
+    - name: Create Route Custom TLS Secret in OpenShift
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: aap-route-tls-secret
+            namespace: "{{ aap_namespace }}"
+          type: kubernetes.io/tls
+          stringData:
+            tls.crt: "{{ lookup('file', custom_tls_cert_file) }}"
+            tls.key: "{{ lookup('file', custom_tls_key_file) }}"
+      when: tls_cert_stats.results | map(attribute='stat.exists') | min
+
+    # -------------------------------------------------------------------------
+    # Operator Installation
+    # -------------------------------------------------------------------------
+    - name: Create Operator Group
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1
+          kind: OperatorGroup
+          metadata:
+            name: ansible-automation-platform-operator
+            namespace: "{{ aap_namespace }}"
+          spec:
+            targetNamespaces:
+              - "{{ aap_namespace }}"
+
+    - name: Create AAP 2.7 Subscription
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: ansible-automation-platform
+            namespace: "{{ aap_namespace }}"
+          spec:
+            channel: 'stable-2.7'
+            installPlanApproval: Automatic
+            name: ansible-automation-platform-operator
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+
+    - name: Wait for AAP Operator CSV to succeed
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        namespace: "{{ aap_namespace }}"
+      register: csv_list
+      until: >
+        csv_list.resources | selectattr('status.phase', 'defined') | selectattr('status.phase', 'equalto', 'Succeeded') | list | length > 0
+      retries: 30
+      delay: 10
+
+    # -------------------------------------------------------------------------
+    # AAP Instance Deployment (Configured for External RDS Database)
+    # -------------------------------------------------------------------------
+    - name: Deploy Ansible Automation Platform Instance
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: aap.ansible.com/v1alpha1
+          kind: AnsibleAutomationPlatform
+          metadata:
+            name: "{{ aap_instance_name }}"
+            namespace: "{{ aap_namespace }}"
+          spec:
+            # REQUIRED AT TOP-LEVEL: Suppresses internal aap-postgres-15-0 StatefulSet
+            postgres_configuration_secret: "rds-gateway-configuration"
+            
+            # Custom FQDN (omitted if -e custom_hostname is not passed)
+            route_host: "{{ custom_hostname | default(omit) }}"
+            
+            image_pull_policy: IfNotPresent
+            bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
+            route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
+            
+            # Platform Gateway Database Secret
+            database:
+              database_secret: "rds-gateway-configuration"
+            
+            # Controller Database Secret
+            controller:
+              disabled: false
+              replicas: 2
+              postgres_configuration_secret: "rds-controller-configuration"
+            
+            # Automation Hub Database Secret & Single-Node Pod Colocation (Solves EBS Multi-Attach)
+            hub:
+              disabled: false
+              postgres_configuration_secret: "rds-hub-configuration"
+              file_storage_access_mode: ReadWriteOnce
+              affinity:
+                podAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    - labelSelector:
+                        matchExpressions:
+                          - key: app.kubernetes.io/part-of
+                            operator: In
+                            values:
+                              - automationhub
+                      topologyKey: kubernetes.io/hostname
+              worker:
+                replicas: 1
+              content:
+                replicas: 1
+              api:
+                replicas: 1
+
+            # Disable unused components & prevent internal metrics DB
+            eda:
+              disabled: true
+
+            lightspeed:
+              disabled: true
+
+            metrics:
+              disabled: true
+
+    # -------------------------------------------------------------------------
+    # Post-Deployment Checks & Configuration
+    # -------------------------------------------------------------------------
+    - name: Wait for Gateway Admin Secret to be created
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: v1
+        kind: Secret
+        name: aap-admin-password
+        namespace: "{{ aap_namespace }}"
+      register: gateway_secret
+      until: gateway_secret.resources | length > 0
+      retries: 40
+      delay: 10
+
+    - name: Extract Gateway Admin Password
+      ansible.builtin.set_fact:
+        aap_admin_password: "{{ gateway_secret.resources[0].data.password | b64decode }}"
+
+    - name: Get AAP Route URL
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: route.openshift.io/v1
+        kind: Route
+        name: aap
+        namespace: "{{ aap_namespace }}"
+      register: aap_route
+      until: aap_route.resources | length > 0 and aap_route.resources[0].spec.host is defined
+      retries: 30
+      delay: 5
+
+    - name: Set AAP URL Fact
+      ansible.builtin.set_fact:
+        aap_url: "https://{{ aap_route.resources[0].spec.host }}"
+
+    - name: Wait for AAP Web Interface to respond
+      ansible.builtin.uri:
+        url: "{{ aap_url }}/api/controller/v2/ping/"
+        method: GET
+        status_code: [200]
+        validate_certs: false
+      register: ping_result
+      until: ping_result.status == 200
+      retries: 80
+      delay: 10
+
+    - name: Check if license manifest exists
+      ansible.builtin.stat:
+        path: "{{ aap_license_manifest }}"
+      register: manifest_stat
+
+    - name: Apply Subscription License Manifest
+      ansible.builtin.uri:
+        url: "{{ aap_url }}/api/controller/v2/config/"
+        method: POST
+        user: "admin"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          eula_accepted: true
+          manifest: "{{ lookup('file', aap_license_manifest) | b64encode }}"
+        status_code: [200, 201]
+        validate_certs: false
+      when: manifest_stat.stat.exists
+
+    - name: Display AAP Access Credentials
+      ansible.builtin.debug:
+        msg:
+          - "===================================================="
+          - "  AAP 2.7 Deployment & Licensing Complete!           "
+          - "===================================================="
+          - "  URL:      {{ aap_url }}"
+          - "  Username: admin"
+          - "  Password: {{ aap_admin_password }}"
+          - "  Database: External AWS RDS PostgreSQL               "
+          - "  Internal CA Bundle: {{ 'Applied (aap-custom-ca-secret)' if ca_cert_stat.stat.exists else 'None' }}"
+          - "  Route TLS Secret:   {{ 'Applied (aap-route-tls-secret)' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else 'Default OpenShift Ingress' }}"
+          - "===================================================="

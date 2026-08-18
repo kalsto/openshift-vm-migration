@@ -1,0 +1,83 @@
+---
+- name: Destroy AAP Deployment on OpenShift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    openshift_username: "cluster-admin"
+    aap_namespace: "ansible-automation-platform"
+    aap_instance_name: "aap"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Pre-check & OpenShift Authentication
+    # -------------------------------------------------------------------------
+    - name: Validate that required extra variables are passed via -e
+      ansible.builtin.assert:
+        that:
+          - openshift_host is defined and openshift_host | length > 0
+          - openshift_password is defined and openshift_password | length > 0
+        fail_msg: "Missing required extra vars! Ensure openshift_host and openshift_password are passed via -e."
+
+    - name: Authenticate against OpenShift OAuth to obtain API Key
+      kubernetes.core.k8s_auth:
+        host: "{{ openshift_host }}"
+        username: "{{ openshift_username }}"
+        password: "{{ openshift_password }}"
+        validate_certs: false
+      register: k8s_auth_results
+
+    - name: Set API Key Fact
+      ansible.builtin.set_fact:
+        k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    # -------------------------------------------------------------------------
+    # Teardown Tasks (Explicit api_key pass)
+    # -------------------------------------------------------------------------
+    - name: Delete AAP Custom Resource Instance
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: aap.ansible.com/v1alpha1
+        kind: AnsibleAutomationPlatform
+        name: "{{ aap_instance_name }}"
+        namespace: "{{ aap_namespace }}"
+        wait: false
+
+    - name: Delete Operator Subscription
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: operators.coreos.com/v1alpha1
+        kind: Subscription
+        name: ansible-automation-platform
+        namespace: "{{ aap_namespace }}"
+        wait: false
+
+    - name: Delete Operator Group
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: operators.coreos.com/v1
+        kind: OperatorGroup
+        name: ansible-automation-platform-operator
+        namespace: "{{ aap_namespace }}"
+        wait: false
+
+    - name: Delete AAP Namespace
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: v1
+        kind: Namespace
+        name: "{{ aap_namespace }}"
+        wait: false

@@ -1,0 +1,358 @@
+---
+- name: Provision AWS RDS PostgreSQL and Configure Secrets for AAP on ROSA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # AWS & Cluster Defaults (Override via -e)
+    aws_region: "us-east-2"
+    openshift_username: "cluster-admin"
+    
+    # RDS Instance Configuration
+    rds_instance_id: "aap-postgres-db"
+    rds_subnet_group_name: "aap-rds-subnet-group"
+    rds_sg_name: "aap-rds-sg"
+    db_engine_version: "15"
+    db_instance_class: "db.m6g.large"
+    allocated_storage_gb: 50
+    
+    # Database Usernames
+    db_master_user: "aap_admin"
+    db_app_user: "aap_user"
+
+    # Target OpenShift Namespace
+    aap_namespace: "ansible-automation-platform"
+
+  module_defaults:
+    group/aws:
+      region: "{{ aws_region }}"
+      access_key: "{{ aws_access_key | default(omit) }}"
+      secret_key: "{{ aws_secret_key | default(omit) }}"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Pre-check: Validate Extra Vars (-e)
+    # -------------------------------------------------------------------------
+    - name: Validate that all required extra variables are passed via -e
+      ansible.builtin.assert:
+        that:
+          - cluster_identifier is defined and cluster_identifier | length > 0
+          - aws_access_key is defined and aws_access_key | length > 0
+          - aws_secret_key is defined and aws_secret_key | length > 0
+          - openshift_host is defined and openshift_host | length > 0
+          - openshift_password is defined and openshift_password | length > 0
+          - db_master_password is defined and db_master_password | length > 0
+          - db_app_password is defined and db_app_password | length > 0
+        fail_msg: >-
+          Missing required extra vars! Ensure cluster_identifier, aws_access_key, 
+          aws_secret_key, openshift_host, openshift_password, db_master_password, 
+          and db_app_password are passed via -e.
+
+    # -------------------------------------------------------------------------
+    # Phase 1: Discover Actual ROSA Cluster VPC & Subnets
+    # -------------------------------------------------------------------------
+    - name: Gather VPC details for ROSA cluster
+      amazon.aws.ec2_vpc_net_info:
+        filters:
+          "tag:Name": "*rosa*{{ cluster_identifier }}*"
+      register: vpc_info
+
+    - name: Set ROSA VPC Facts
+      ansible.builtin.set_fact:
+        rosa_vpc_id: "{{ vpc_info.vpcs[0].id }}"
+        rosa_vpc_cidr: "{{ vpc_info.vpcs[0].cidr_block }}"
+
+    - name: Gather Subnets inside ROSA VPC
+      amazon.aws.ec2_vpc_subnet_info:
+        filters:
+          vpc-id: "{{ rosa_vpc_id }}"
+      register: subnet_info
+
+    - name: Extract Subnet IDs and Availability Zones
+      ansible.builtin.set_fact:
+        rosa_subnet_ids: "{{ subnet_info.subnets | map(attribute='id') | list }}"
+        existing_azs: "{{ subnet_info.subnets | map(attribute='availability_zone') | unique | list }}"
+
+    # -------------------------------------------------------------------------
+    # Phase 2: Security Group and Subnet Group Creation
+    # -------------------------------------------------------------------------
+    - name: Determine secondary AZ and CIDR dynamically if ROSA VPC is Single-AZ
+      ansible.builtin.set_fact:
+        secondary_az: "{{ (aws_region ~ 'a') if (aws_region ~ 'a') not in existing_azs else (aws_region ~ 'c') }}"
+        secondary_cidr: "{{ rosa_vpc_cidr | ansible.utils.ipsubnet(24, 250) }}"
+      when: existing_azs | length < 2
+
+    - name: Create secondary subnet in 2nd AZ for RDS 2-AZ requirement
+      amazon.aws.ec2_vpc_subnet:
+        vpc_id: "{{ rosa_vpc_id }}"
+        az: "{{ secondary_az }}"
+        cidr: "{{ secondary_cidr }}"
+        tags:
+          Name: "aap-rds-secondary-subnet-{{ secondary_az }}"
+        state: present
+      register: secondary_subnet
+      when: existing_azs | length < 2
+
+    - name: Append secondary subnet ID to subnet list
+      ansible.builtin.set_fact:
+        rosa_subnet_ids: "{{ rosa_subnet_ids + [secondary_subnet.subnet.id] }}"
+      when: existing_azs | length < 2 and secondary_subnet.subnet is defined
+
+    - name: Create RDS Subnet Group in ROSA VPC
+      amazon.aws.rds_subnet_group:
+        name: "{{ rds_subnet_group_name }}"
+        description: "Subnet group for AAP RDS on ROSA VPC"
+        subnets: "{{ rosa_subnet_ids }}"
+        state: present
+
+    - name: Create RDS Security Group allowing inbound 5432
+      amazon.aws.ec2_security_group:
+        name: "{{ rds_sg_name }}"
+        description: "Security Group for AAP PostgreSQL RDS"
+        vpc_id: "{{ rosa_vpc_id }}"
+        rules:
+          - proto: tcp
+            from_port: 5432
+            to_port: 5432
+            cidr_ip: "0.0.0.0/0"
+            rule_desc: "Allow PostgreSQL from all VPC and Pod networks"
+        state: present
+      register: rds_sg
+
+    # -------------------------------------------------------------------------
+    # Phase 3: Provision RDS Instance
+    # -------------------------------------------------------------------------
+    - name: Provision PostgreSQL RDS Instance in ROSA VPC
+      amazon.aws.rds_instance:
+        db_instance_identifier: "{{ rds_instance_id }}"
+        engine: postgres
+        engine_version: "{{ db_engine_version }}"
+        db_instance_class: "{{ db_instance_class }}"
+        allocated_storage: "{{ allocated_storage_gb }}"
+        storage_type: gp3
+        master_username: "{{ db_master_user }}"
+        master_user_password: "{{ db_master_password }}"
+        db_subnet_group_name: "{{ rds_subnet_group_name }}"
+        vpc_security_group_ids: ["{{ rds_sg.group_id }}"]
+        publicly_accessible: false
+        multi_az: false
+        apply_immediately: true
+        wait: true
+        state: present
+      register: rds_db
+
+    # -------------------------------------------------------------------------
+    # Phase 4: OpenShift Authentication & Database Initialization Job
+    # -------------------------------------------------------------------------
+    - name: Authenticate against OpenShift OAuth
+      kubernetes.core.k8s_auth:
+        host: "{{ openshift_host }}"
+        username: "{{ openshift_username }}"
+        password: "{{ openshift_password }}"
+        validate_certs: false
+      register: k8s_auth_results
+
+    - name: Set API Token Fact
+      ansible.builtin.set_fact:
+        k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    - name: Ensure Target OpenShift Namespace Exists
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: v1
+        kind: Namespace
+        name: "{{ aap_namespace }}"
+        state: present
+
+    - name: Delete existing database initialization job if present
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: batch/v1
+        kind: Job
+        name: rds-init-job
+        namespace: "{{ aap_namespace }}"
+
+    - name: Run Database Initialization Job on ROSA
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: rds-init-job
+            namespace: "{{ aap_namespace }}"
+          spec:
+            ttlSecondsAfterFinished: 300
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: pg-init
+                    image: registry.redhat.io/rhel9/postgresql-15
+                    env:
+                      - name: PGPASSWORD
+                        value: "{{ db_master_password }}"
+                    command:
+                      - /bin/bash
+                      - -c
+                      - |
+                        set -e
+                        echo "Connecting to {{ rds_db.endpoint.address }}..."
+
+                        # Create application user
+                        psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -c "
+                          DO \$\$
+                          BEGIN
+                            IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ db_app_user }}') THEN
+                              CREATE USER {{ db_app_user }} WITH PASSWORD '{{ db_app_password }}';
+                            END IF;
+                          END
+                          \$\$;
+                        "
+
+                        # Create databases for Gateway, Controller, Hub, and EDA
+                        for db in aap_gateway aap_controller aap_hub aap_eda; do
+                          psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+                          psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ db_app_user }};"
+                        done
+
+                        # Create hstore extension on Automation Hub database
+                        psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
+                        echo "PostgreSQL initialization completed successfully!"
+
+    - name: Wait for Database Initialization Job to succeed
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: batch/v1
+        kind: Job
+        name: rds-init-job
+        namespace: "{{ aap_namespace }}"
+      register: init_job_info
+      until: >
+        init_job_info.resources | length > 0 and
+        (init_job_info.resources[0].status.succeeded | default(0)) > 0
+      retries: 30
+      delay: 10
+
+    # -------------------------------------------------------------------------
+    # Phase 5: Create K8s Database Configuration Secrets for AAP Operator
+    # -------------------------------------------------------------------------
+    - name: Create Gateway Database Configuration Secret
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: rds-gateway-configuration
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ rds_db.endpoint.address }}"
+            port: "5432"
+            database: "aap_gateway"
+            username: "{{ db_app_user }}"
+            password: "{{ db_app_password }}"
+            sslmode: "prefer"
+            type: "unmanaged"
+
+    - name: Create Controller Database Configuration Secret
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: rds-controller-configuration
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ rds_db.endpoint.address }}"
+            port: "5432"
+            database: "aap_controller"
+            username: "{{ db_app_user }}"
+            password: "{{ db_app_password }}"
+            sslmode: "prefer"
+            type: "unmanaged"
+
+    - name: Create Hub Database Configuration Secret
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: rds-hub-configuration
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ rds_db.endpoint.address }}"
+            port: "5432"
+            database: "aap_hub"
+            username: "{{ db_app_user }}"
+            password: "{{ db_app_password }}"
+            sslmode: "prefer"
+            type: "unmanaged"
+
+    - name: Create EDA Database Configuration Secret
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: rds-eda-configuration
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ rds_db.endpoint.address }}"
+            port: "5432"
+            database: "aap_eda"
+            username: "{{ db_app_user }}"
+            password: "{{ db_app_password }}"
+            sslmode: "prefer"
+            type: "unmanaged"
+
+    # -------------------------------------------------------------------------
+    # Phase 6: Output Summary
+    # -------------------------------------------------------------------------
+    - name: Display RDS Provisioning Summary
+      ansible.builtin.debug:
+        msg:
+          - "===================================================="
+          - "  AWS RDS PostgreSQL Provisioning Complete!          "
+          - "===================================================="
+          - "  RDS Endpoint: {{ rds_db.endpoint.address }}"
+          - "  Port:         5432"
+          - "  Master User:  {{ db_master_user }}"
+          - "  App User:     {{ db_app_user }}"
+          - "  Databases:    aap_gateway, aap_controller, aap_hub, aap_eda"
+          - "  K8s Secrets Created in '{{ aap_namespace }}':"
+          - "    - rds-gateway-configuration"
+          - "    - rds-controller-configuration"
+          - "    - rds-hub-configuration"
+          - "    - rds-eda-configuration"
+          - "===================================================="

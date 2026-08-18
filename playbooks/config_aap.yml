@@ -1,0 +1,157 @@
+---
+- name: AAP Configuration Management
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  collections:
+    - ansible.controller
+
+  vars_files:
+    - "../vars/vault.yml"
+    - "../vars/aap_config.yml"
+
+  vars:
+    aap_namespace: "ansible-automation-platform"
+    openshift_host: "{{ vault_openshift_host }}"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # 1. Fetch Cluster Auth & Target AAP Credentials
+    # -------------------------------------------------------------------------
+    - name: Authenticate against OpenShift Cluster
+      kubernetes.core.k8s_auth:
+        host: "{{ openshift_host }}"
+        username: "{{ vault_openshift_username }}"
+        password: "{{ vault_openshift_password }}"
+        validate_certs: false
+      register: k8s_auth_results
+
+    - name: Get Admin Password from Secret
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        api_version: v1
+        kind: Secret
+        name: aap-admin-password
+        namespace: "{{ aap_namespace }}"
+      register: gateway_secret
+      failed_when: false
+
+    - name: Get AAP Route URL
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        api_version: route.openshift.io/v1
+        kind: Route
+        name: aap
+        namespace: "{{ aap_namespace }}"
+      register: aap_route
+      failed_when: false
+
+    - name: Set Connection Facts
+      ansible.builtin.set_fact:
+        aap_admin_password: "{{ (gateway_secret.resources[0].data.password | b64decode) if (gateway_secret.resources | default([]) | length > 0) else vault_openshift_password }}"
+        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else vault_fallback_aap_url }}"
+        k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
+
+    # -------------------------------------------------------------------------
+    # 2. Provision Resources using ansible.controller Collection
+    # -------------------------------------------------------------------------
+    - name: Provision AAP Resources
+      environment:
+        CONTROLLER_HOST: "{{ aap_url }}"
+        CONTROLLER_USERNAME: "admin"
+        CONTROLLER_PASSWORD: "{{ aap_admin_password }}"
+        CONTROLLER_FORCE_BASIC_AUTH: "true"
+        CONTROLLER_VERIFY_SSL: "false"
+      block:
+        - name: Create credentials in AAP
+          ansible.controller.credential:
+            name: "{{ item.name }}"
+            description: "{{ item.description }}"
+            organization: "{{ item.organization }}"
+            credential_type: "{{ item.credential_type }}"
+            inputs: "{{ item.inputs }}"
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ credentials | default([]) }}"
+          no_log: true
+
+        - name: Associate Galaxy Credentials with Organization
+          ansible.controller.organization:
+            name: "{{ item.name }}"
+            galaxy_credentials: "{{ item.galaxy_credentials | default(omit) }}"
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ organizations | default([]) }}"
+
+        - name: Create projects in AAP
+          ansible.controller.project:
+            name: "{{ item.name }}"
+            description: "{{ item.description }}"
+            organization: "{{ item.organization }}"
+            scm_type: "{{ item.scm_type }}"
+            scm_url: "{{ item.scm_url }}"
+            scm_credential: "{{ item.scm_credential }}"
+            scm_branch: "{{ item.scm_branch }}"
+            scm_update_on_launch: true
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ projects | default([]) }}"
+
+        - name: Sync projects to populate SCM content
+          ansible.controller.project_update:
+            name: "{{ item.name }}"
+            wait: true
+          loop: "{{ projects | default([]) }}"
+
+        - name: Create Inventory Containers in AAP
+          ansible.controller.inventory:
+            name: "{{ item.name }}"
+            description: "{{ item.description }}"
+            organization: "{{ item.organization }}"
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ inventories | default([]) }}"
+
+        - name: Remove Existing Inventory Sources to Clear Stale Attributes
+          ansible.controller.inventory_source:
+            name: "{{ item.name }} Source"
+            inventory: "{{ item.name }}"
+            state: "absent"
+          loop: "{{ inventories | default([]) }}"
+
+        - name: Link Inventory Sources
+          ansible.controller.inventory_source:
+            name: "{{ item.name }} Source"
+            inventory: "{{ item.name }}"
+            source: "{{ item.source | default('vmware') }}"
+            credential: "{{ item.credential | default(omit) }}"
+            source_project: "{{ item.source_project if (item.source | default('vmware') == 'scm') else omit }}"
+            source_path: "{{ item.source_path if (item.source | default('vmware') == 'scm') else omit }}"
+            source_vars: "{{ item.source_vars | default(omit) }}"
+            overwrite: "{{ item.overwrite | default(true) }}"
+            overwrite_vars: "{{ item.overwrite_vars | default(true) }}"
+            update_on_launch: "{{ item.update_on_launch | default(true) }}"
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ inventories | default([]) }}"
+
+        - name: Sync Inventory Sources to Fetch Hosts
+          ansible.controller.inventory_source_update:
+            inventory_source: "{{ item.name }} Source"
+            inventory: "{{ item.name }}"
+            wait: true
+          loop: "{{ inventories | default([]) }}"
+          ignore_errors: true
+
+        - name: Create job templates from configuration
+          ansible.controller.job_template:
+            name: "{{ item.name }}"
+            project: "{{ item.project }}"
+            inventory: "{{ item.inventory }}"
+            playbook: "{{ item.playbook }}"
+            organization: "{{ item.organization }}"
+            credentials: "{{ item.credentials }}"
+            state: "{{ item.state | default('present') }}"
+            survey_enabled: "{{ true if item.survey_path is defined else false }}"
+            survey_spec: "{{ lookup('file', playbook_dir + '/../' + item.survey_path) | from_json if item.survey_path is defined else omit }}"
+          loop: "{{ job_templates | default([]) }}"

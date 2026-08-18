@@ -1,6 +1,12 @@
 ---
 collections:
+  - name: amazon.aws
+  - name: community.postgresql
+  - name: kubernetes.core
   - name: ansible.posix
   - name: ansible.utils
-  - name: kubernetes.core
-  - name: infra.openshift_virtualization_migration
+  - name: ansible.controller
+  - name: awx.awx
+  - name: https://github.com/redhat-cop/openshift_virtualization_migration.git
+    type: git
+    version: main

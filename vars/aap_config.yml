@@ -1,0 +1,112 @@
+---
+# ==============================================================================
+# AAP Predefined Resources (Organizations, Credentials, Projects, Job Templates)
+# File: vars/aap_config.yml
+# ==============================================================================
+
+aap_organization: "Default"
+
+# ------------------------------------------------------------------------------
+# Credentials
+# ------------------------------------------------------------------------------
+credentials:
+  - name: "Red Hat Automation Hub Credential"
+    description: "Automation Hub API Token for Red Hat Certified Collections"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_automation_hub_url }}"
+      auth_url: "{{ vault_automation_hub_auth_url }}"
+      token: "{{ vault_rh_offline_token }}"
+    state: "present"
+
+  - name: "Ansible Galaxy Credential"
+    description: "Public Ansible Galaxy server for community collections"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_galaxy_url }}"
+    state: "present"
+
+  - name: "vCenter Credentials"
+    description: "Source VMware vCenter Credentials for VM Migration"
+    organization: "{{ aap_organization }}"
+    credential_type: "VMware vCenter"
+    inputs:
+      host: "{{ vault_vcenter_host }}"
+      username: "{{ vault_vcenter_username }}"
+      password: "{{ vault_vcenter_password }}"
+    state: "present"
+
+  - name: "OpenShift Cluster API Credential"
+    description: "Bearer Token for target OpenShift Virtualization Cluster"
+    organization: "{{ aap_organization }}"
+    credential_type: "OpenShift or Kubernetes API Bearer Token"
+    inputs:
+      host: "{{ openshift_host }}"
+      bearer_token: "{{ k8s_token }}"
+    state: "present"
+
+  - name: "GitHub Deploy Key Credential"
+    description: "SSH Private Key for GitHub SCM Repositories"
+    organization: "{{ aap_organization }}"
+    credential_type: "Source Control"
+    inputs:
+      ssh_key_data: "{{ vault_github_deploy_key_private }}"
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Organizations
+# ------------------------------------------------------------------------------
+organizations:
+  - name: "{{ aap_organization }}"
+    galaxy_credentials:
+      - "Red Hat Automation Hub Credential"
+      - "Ansible Galaxy Credential"
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Projects
+# ------------------------------------------------------------------------------
+projects:
+  - name: "tt-openshift-virt"
+    description: "Git repository containing VM migration playbooks"
+    organization: "{{ aap_organization }}"
+    scm_type: "git"
+    scm_url: "{{ vault_github_scm_url }}"
+    scm_credential: "GitHub Deploy Key Credential"
+    scm_branch: "main"
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Inventories & VMware Dynamic Sources
+# ------------------------------------------------------------------------------
+inventories:
+  - name: "VM Migration Inventory"
+    description: "Dynamic inventory synced directly from VMware vCenter"
+    organization: "{{ aap_organization }}"
+    source: "vmware"
+    credential: "vCenter Credentials"
+    source_vars:
+      plugin: community.vmware.vmware_vm_inventory
+      validate_certs: false
+      with_tags: false
+      strict: false
+      hostnames:
+        - name
+        - config.name
+    state: "present"
+
+# ------------------------------------------------------------------------------
+# Job Templates
+# ------------------------------------------------------------------------------
+job_templates:
+  - name: "01 - Execute OpenShift VM Migration"
+    organization: "{{ aap_organization }}"
+    project: "tt-openshift-virt"
+    inventory: "VM Migration Inventory"
+    playbook: "playbooks/migrate_vms.yml"
+    credentials:
+      - "vCenter Credentials"
+      - "OpenShift Cluster API Credential"
+    state: "present"
