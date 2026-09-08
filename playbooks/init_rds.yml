@@ -1,0 +1,132 @@
+---
+- name: Initialize RDS Databases for AAP on OpenShift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - "../vars/vault.yml"
+
+  vars:
+    aap_namespace: "ansible-automation-platform"
+    openshift_host: "{{ vault_openshift_host }}"
+    openshift_username: "{{ vault_openshift_username | default('cluster-admin') }}"
+    openshift_password: "{{ vault_openshift_password }}"
+    rds_host: "{{ vault_rds_host }}"
+    rds_user: "{{ vault_rds_master_user | default('dbadmin') }}"
+    rds_password: "{{ vault_rds_password }}"
+
+  tasks:
+    - name: Authenticate against OpenShift OAuth
+      kubernetes.core.k8s_auth:
+        host: "{{ openshift_host }}"
+        username: "{{ openshift_username }}"
+        password: "{{ openshift_password }}"
+        validate_certs: false
+      register: k8s_auth_results
+
+    - name: Ensure Target Namespace Exists
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        api_version: v1
+        kind: Namespace
+        name: "{{ aap_namespace }}"
+        state: present
+
+    - name: Delete Old Initialization Job If Present
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        state: absent
+        api_version: batch/v1
+        kind: Job
+        name: rds-init-job
+        namespace: "{{ aap_namespace }}"
+
+    - name: Run Database Initialization Job on OpenShift
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: rds-init-job
+            namespace: "{{ aap_namespace }}"
+          spec:
+            ttlSecondsAfterFinished: 300
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: pg-init
+                    image: registry.redhat.io/rhel9/postgresql-15
+                    env:
+                      - name: PGPASSWORD
+                        value: "{{ rds_password }}"
+                    command:
+                      - /bin/bash
+                      - -c
+                      - |
+                        set -e
+                        echo "Connecting to {{ rds_host }}..."
+
+                        # Force drop and recreate databases to wipe old encrypted data matching deleted secrets
+                        for db in aap_gateway aap_controller aap_hub; do
+                          psql -h {{ rds_host }} -U {{ rds_user }} -d postgres -c "DROP DATABASE IF EXISTS $db WITH (FORCE);"
+                          psql -h {{ rds_host }} -U {{ rds_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ rds_user }};"
+                        done
+
+                        # Create hstore extension on Automation Hub database
+                        psql -h {{ rds_host }} -U {{ rds_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
+                        echo "PostgreSQL initialization completed successfully!"
+
+    - name: Wait for Job to Succeed
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        api_version: batch/v1
+        kind: Job
+        name: rds-init-job
+        namespace: "{{ aap_namespace }}"
+      register: init_job_info
+      until: >
+        init_job_info.resources | length > 0 and
+        (init_job_info.resources[0].status.succeeded | default(0)) > 0
+      retries: 30
+      delay: 10
+
+    # -------------------------------------------------------------------------
+    # Create OpenShift Secrets for AAP Components
+    # -------------------------------------------------------------------------
+    - name: Create OpenShift Database Configuration Secrets
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ item.name }}"
+            namespace: "{{ aap_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ rds_host }}"
+            port: "5432"
+            database: "{{ item.db }}"
+            username: "{{ rds_user }}"
+            password: "{{ rds_password }}"
+            sslmode: "prefer"
+            type: "unmanaged"
+      loop:
+        - { name: "rds-gateway-configuration", db: "aap_gateway" }
+        - { name: "rds-controller-configuration", db: "aap_controller" }
+        - { name: "rds-hub-configuration", db: "aap_hub" }

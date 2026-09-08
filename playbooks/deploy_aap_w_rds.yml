@@ -3,10 +3,15 @@
   hosts: localhost
   connection: local
   gather_facts: false
+
+  vars_files:
+    - "../vars/vault.yml"
   
   vars:
-    # Cluster Configuration Defaults (Override via -e)
-    openshift_username: "cluster-admin"
+    # OpenShift Cluster Credentials (Loaded from vault.yml or overridden via -e)
+    openshift_host: "{{ vault_openshift_host | default(omit) }}"
+    openshift_password: "{{ vault_openshift_password | default(omit) }}"
+    openshift_username: "{{ vault_openshift_username | default('cluster-admin') }}"
     
     # AAP Instance & Namespace Configuration
     aap_namespace: "ansible-automation-platform"
@@ -22,14 +27,14 @@
     # -------------------------------------------------------------------------
     # Pre-check & OpenShift Authentication
     # -------------------------------------------------------------------------
-    - name: Validate that required extra variables are passed via -e
+    - name: Validate that required OpenShift connection variables are present
       ansible.builtin.assert:
         that:
           - openshift_host is defined and openshift_host | length > 0
           - openshift_password is defined and openshift_password | length > 0
         fail_msg: >-
-          Missing required extra vars! Please ensure both openshift_host 
-          and openshift_password are passed via -e flags.
+          Missing required variables! Ensure openshift_host and openshift_password 
+          are present in vars/vault.yml or passed via -e flags.
         success_msg: "All required OpenShift extra variables verified."
 
     - name: Authenticate against OpenShift OAuth to obtain API Key
@@ -175,27 +180,24 @@
             name: "{{ aap_instance_name }}"
             namespace: "{{ aap_namespace }}"
           spec:
-            # REQUIRED AT TOP-LEVEL: Suppresses internal aap-postgres-15-0 StatefulSet
-            postgres_configuration_secret: "rds-gateway-configuration"
-            
-            # Custom FQDN (omitted if -e custom_hostname is not passed)
+            # Custom FQDN (omitted if custom_hostname is not defined)
             route_host: "{{ custom_hostname | default(omit) }}"
             
             image_pull_policy: IfNotPresent
             bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
             route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
             
-            # Platform Gateway Database Secret
+            # Platform Gateway Database Secret (Correctly scoped under database:)
             database:
-              database_secret: "rds-gateway-configuration"
-            
+              database_secret: "rds-gateway-configuration" 
+
             # Controller Database Secret
             controller:
               disabled: false
               replicas: 2
               postgres_configuration_secret: "rds-controller-configuration"
             
-            # Automation Hub Database Secret & Single-Node Pod Colocation (Solves EBS Multi-Attach)
+            # Automation Hub Database Secret
             hub:
               disabled: false
               postgres_configuration_secret: "rds-hub-configuration"

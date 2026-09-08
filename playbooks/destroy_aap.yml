@@ -4,8 +4,13 @@
   connection: local
   gather_facts: false
 
+  vars_files:
+    - "../vars/vault.yml"
+
   vars:
-    openshift_username: "cluster-admin"
+    openshift_host: "{{ vault_openshift_host }}"
+    openshift_password: "{{ vault_openshift_password }}"
+    openshift_username: "{{ vault_openshift_username | default('cluster-admin') }}"
     aap_namespace: "ansible-automation-platform"
     aap_instance_name: "aap"
 
