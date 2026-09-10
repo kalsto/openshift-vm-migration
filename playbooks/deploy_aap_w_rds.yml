@@ -18,6 +18,9 @@
     aap_instance_name: "aap"
     aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
 
+    # ROSA KMS Storage Class Configuration (Override via -e storage_class=<class-name>)
+    storage_class: "gp3-csi-rosa-kms"
+
     # Optional Certificate File Paths (Checked at runtime)
     custom_ca_cert_file: "{{ playbook_dir }}/../certs/internal-ca.crt"
     custom_tls_cert_file: "{{ playbook_dir }}/../certs/tls.crt"
@@ -197,11 +200,13 @@
               replicas: 2
               postgres_configuration_secret: "rds-controller-configuration"
             
-            # Automation Hub Database Secret
+            # Automation Hub Database Secret & ROSA KMS Storage Classes
             hub:
               disabled: false
               postgres_configuration_secret: "rds-hub-configuration"
               file_storage_access_mode: ReadWriteOnce
+              file_storage_storage_class: "{{ storage_class }}"
+              redis_storage_class: "{{ storage_class }}"
               affinity:
                 podAffinity:
                   requiredDuringSchedulingIgnoredDuringExecution:
@@ -305,10 +310,11 @@
           - "===================================================="
           - "  AAP 2.7 Deployment & Licensing Complete!           "
           - "===================================================="
-          - "  URL:      {{ aap_url }}"
-          - "  Username: admin"
-          - "  Password: {{ aap_admin_password }}"
-          - "  Database: External AWS RDS PostgreSQL               "
-          - "  Internal CA Bundle: {{ 'Applied (aap-custom-ca-secret)' if ca_cert_stat.stat.exists else 'None' }}"
-          - "  Route TLS Secret:   {{ 'Applied (aap-route-tls-secret)' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else 'Default OpenShift Ingress' }}"
+          - "  URL:           {{ aap_url }}"
+          - "  Username:      admin"
+          - "  Password:      {{ aap_admin_password }}"
+          - "  Database:      External AWS RDS PostgreSQL         "
+          - "  Storage Class: {{ storage_class }}"
+          - "  CA Bundle:     {{ 'Applied (aap-custom-ca-secret)' if ca_cert_stat.stat.exists else 'None' }}"
+          - "  TLS Secret:    {{ 'Applied (aap-route-tls-secret)' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else 'Default OpenShift Ingress' }}"
           - "===================================================="
