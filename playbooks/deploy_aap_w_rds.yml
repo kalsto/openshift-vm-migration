@@ -190,7 +190,7 @@
             bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
             route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
             
-            # Platform Gateway Database Secret (Correctly scoped under database:)
+            # Platform Gateway Database Secret
             database:
               database_secret: "rds-gateway-configuration" 
 

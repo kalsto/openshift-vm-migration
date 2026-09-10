@@ -69,6 +69,8 @@
                     env:
                       - name: PGPASSWORD
                         value: "{{ rds_password }}"
+                      - name: PGSSLMODE
+                        value: "require"
                     command:
                       - /bin/bash
                       - -c
@@ -103,7 +105,7 @@
       delay: 10
 
     # -------------------------------------------------------------------------
-    # Create OpenShift Secrets for AAP Components
+    # Create OpenShift Database Configuration Secrets (Enforcing SSL for RDS)
     # -------------------------------------------------------------------------
     - name: Create OpenShift Database Configuration Secrets
       kubernetes.core.k8s:
@@ -124,7 +126,7 @@
             database: "{{ item.db }}"
             username: "{{ rds_user }}"
             password: "{{ rds_password }}"
-            sslmode: "prefer"
+            sslmode: "require"
             type: "unmanaged"
       loop:
         - { name: "rds-gateway-configuration", db: "aap_gateway" }
