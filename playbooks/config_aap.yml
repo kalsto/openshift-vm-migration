@@ -104,7 +104,7 @@
         - name: Trigger Async Project Syncs
           ansible.controller.project_update:
             name: "{{ item.name }}"
-            wait: false
+            wait: true
           loop: "{{ projects | default([]) }}"
 
         - name: Create Inventory Containers in AAP
