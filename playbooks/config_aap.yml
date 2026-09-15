@@ -62,7 +62,7 @@
     # -------------------------------------------------------------------------
     # 2. Configure & Sync Local Automation Hub Remotes FIRST
     # -------------------------------------------------------------------------
-    - name: Configure Local Automation Hub Collection Remotes
+- name: Configure Local Automation Hub Collection Remotes
       infra.ah_configuration.collection_remote:
         name: "{{ item.name }}"
         url: "{{ item.url }}"
@@ -73,8 +73,8 @@
         ah_username: "admin"
         ah_password: "{{ aap_admin_password }}"
         validate_certs: false
+        wait: false
       loop: "{{ ah_collection_remotes | default([]) }}"
-      no_log: false
 
     - name: Trigger and WAIT for Automation Hub Remote Sync Jobs
       infra.ah_configuration.collection_repository_sync:
