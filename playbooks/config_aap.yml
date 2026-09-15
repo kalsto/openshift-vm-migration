@@ -6,6 +6,8 @@
 
   collections:
     - ansible.controller
+    - infra.ah_configuration
+    - kubernetes.core
 
   vars_files:
     - "../vars/vault.yml"
@@ -58,9 +60,9 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # 2. Provision Resources using ansible.controller Collection
+    # 2. Provision Controller Resources using ansible.controller
     # -------------------------------------------------------------------------
-    - name: Provision AAP Resources
+    - name: Provision Controller Resources
       environment:
         CONTROLLER_HOST: "{{ aap_url }}"
         CONTROLLER_USERNAME: "admin"
@@ -99,10 +101,10 @@
             state: "{{ item.state | default('present') }}"
           loop: "{{ projects | default([]) }}"
 
-        - name: Sync projects to populate SCM content
+        - name: Trigger Async Project Syncs
           ansible.controller.project_update:
             name: "{{ item.name }}"
-            wait: true
+            wait: false
           loop: "{{ projects | default([]) }}"
 
         - name: Create Inventory Containers in AAP
@@ -135,11 +137,11 @@
             state: "{{ item.state | default('present') }}"
           loop: "{{ inventories | default([]) }}"
 
-        - name: Sync Inventory Sources to Fetch Hosts
+        - name: Trigger Async Inventory Source Syncs
           ansible.controller.inventory_source_update:
             inventory_source: "{{ item.name }} Source"
             inventory: "{{ item.name }}"
-            wait: true
+            wait: false
           loop: "{{ inventories | default([]) }}"
           ignore_errors: true
 
@@ -155,3 +157,30 @@
             survey_enabled: "{{ true if item.survey_path is defined else false }}"
             survey_spec: "{{ lookup('file', playbook_dir + '/../' + item.survey_path) | from_json if item.survey_path is defined else omit }}"
           loop: "{{ job_templates | default([]) }}"
+
+    # -------------------------------------------------------------------------
+    # 3. Configure & Sync Local Automation Hub Remotes
+    # -------------------------------------------------------------------------
+    - name: Configure Local Automation Hub Collection Remotes
+      infra.ah_configuration.collection_remote:
+        name: "{{ item.name }}"
+        url: "{{ item.url }}"
+        auth_url: "{{ item.auth_url | default(omit) }}"
+        token: "{{ item.token | default(omit) }}"
+        requirements: "{{ item.requirements | default(omit) }}"
+        ah_host: "{{ aap_url }}"
+        ah_username: "admin"
+        ah_password: "{{ aap_admin_password }}"
+        validate_certs: false
+      loop: "{{ ah_collection_remotes | default([]) }}"
+      no_log: true
+
+    - name: Trigger Async Automation Hub Remote Sync Jobs
+      infra.ah_configuration.collection_repository_sync:
+        name: "{{ item.name }}"
+        wait: false
+        ah_host: "{{ aap_url }}"
+        ah_username: "admin"
+        ah_password: "{{ aap_admin_password }}"
+        validate_certs: false
+      loop: "{{ ah_collection_remotes | default([]) }}"
