@@ -74,7 +74,7 @@
         ah_password: "{{ aap_admin_password }}"
         validate_certs: false
       loop: "{{ ah_collection_remotes | default([]) }}"
-      no_log: true
+      no_log: false
 
     - name: Trigger and WAIT for Automation Hub Remote Sync Jobs
       infra.ah_configuration.collection_repository_sync:
@@ -106,7 +106,6 @@
             inputs: "{{ item.inputs }}"
             state: "{{ item.state | default('present') }}"
           loop: "{{ credentials | default([]) }}"
-          no_log: true
 
         - name: Associate Galaxy Credentials with Organization
           ansible.controller.organization:
