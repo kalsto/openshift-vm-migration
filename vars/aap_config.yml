@@ -1,6 +1,6 @@
 ---
 # ==============================================================================
-# AAP Predefined Resources (Organizations, Credentials, Projects, Job Templates)
+# AAP Predefined Resources
 # File: vars/aap_config.yml
 # ==============================================================================
 
@@ -10,6 +10,32 @@ aap_organization: "Default"
 # Credentials
 # ------------------------------------------------------------------------------
 credentials:
+  - name: "Ansible Vault Credential"
+    description: "Vault password for decrypting playbook vault.yml files"
+    organization: "{{ aap_organization }}"
+    credential_type: "Vault"
+    inputs:
+      vault_password: "{{ vault_ansible_password }}"
+    state: "present"
+
+  - name: "Local Automation Hub Published"
+    description: "Internal Automation Hub Published Content"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_local_published_url }}"
+      token: "{{ vault_local_hub_token }}"
+    state: "present"
+
+  - name: "Local Automation Hub Community"
+    description: "Internal Automation Hub Community Content"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_local_community_url }}"
+      token: "{{ vault_local_hub_token }}"
+    state: "present"
+
   - name: "Red Hat Automation Hub Credential"
     description: "Automation Hub API Token for Red Hat Certified Collections"
     organization: "{{ aap_organization }}"
@@ -61,6 +87,8 @@ credentials:
 organizations:
   - name: "{{ aap_organization }}"
     galaxy_credentials:
+      - "Local Automation Hub Published"
+      - "Local Automation Hub Community"
       - "Red Hat Automation Hub Credential"
       - "Ansible Galaxy Credential"
     state: "present"
@@ -109,4 +137,5 @@ job_templates:
     credentials:
       - "vCenter Credentials"
       - "OpenShift Cluster API Credential"
+      - "Ansible Vault Credential"
     state: "present"
