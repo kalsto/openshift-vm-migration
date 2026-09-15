@@ -60,7 +60,7 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # 2. Configure & Sync Local Automation Hub Remotes FIRST
+    # 2. Configure & Sync Local Automation Hub Remotes
     # -------------------------------------------------------------------------
     - name: Configure Local Automation Hub Collection Remotes
       infra.ah_configuration.collection_remote:
@@ -73,7 +73,6 @@
         ah_username: "admin"
         ah_password: "{{ aap_admin_password }}"
         validate_certs: false
-        wait: false
       loop: "{{ ah_collection_remotes | default([]) }}"
 
     - name: Trigger and WAIT for Automation Hub Remote Sync Jobs

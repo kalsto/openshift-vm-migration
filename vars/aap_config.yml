@@ -7,7 +7,7 @@
 aap_organization: "Default"
 
 # ------------------------------------------------------------------------------
-# Automation Hub Remote Synchronization Filters
+# Automation Hub Remote Synchronization Filters (Without Versions)
 # ------------------------------------------------------------------------------
 ah_collection_remotes:
   - name: "rh-certified"
@@ -15,42 +15,26 @@ ah_collection_remotes:
     auth_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
     token: "{{ vault_rh_offline_token }}"
     requirements:
-      - name: redhat.openshift
-        version: 6.0.0
-      - name: redhat.openshift_virtualization
-        version: 2.3.0
-      - name: ansible.controller
-        version: 4.8.8
-      - name: kubernetes.core
-        version: 6.5.0
-      - name: ansible.utils
-        version: 6.1.0
-      - name: ansible.posix
-        version: 2.2.2
-      - name: vmware.vmware_rest
-        version: 4.11.0
+      - "redhat.openshift"
+      - "redhat.openshift_virtualization"
+      - "ansible.controller"
+      - "kubernetes.core"
+      - "ansible.utils"
+      - "ansible.posix"
+      - "vmware.vmware_rest"
 
   - name: "community"
     url: "https://galaxy.ansible.com/api/"
     requirements:
-      - name: community.vmware
-        version: 6.4.0
-      - name: community.general
-        version: 13.4.0
-      - name: infra.aap_utilities
-        version: 4.0.0
-      - name: infra.openshift_virtualization_migration
-        version: 1.25.0
-      - name: community.crypto
-        version: 3.4.0
-      - name: containers.podman
-        version: 1.20.2
-      - name: community.library_inventory_filtering_v1
-        version: 1.1.5
-      - name: community.postgresql
-        version: 5.0.0
-      - name: vmware.vmware
-        version: 2.10.0
+      - "community.vmware"
+      - "community.general"
+      - "infra.aap_utilities"
+      - "infra.openshift_virtualization_migration"
+      - "community.crypto"
+      - "containers.podman"
+      - "community.library_inventory_filtering_v1"
+      - "community.postgresql"
+      - "vmware.vmware"
 
 # ------------------------------------------------------------------------------
 # Credentials
