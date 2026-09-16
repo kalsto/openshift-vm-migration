@@ -23,7 +23,7 @@ provider: "vsphere"
 mtv_management_source_target: "chidebmockvc01.int.tt.local"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
-mtv_management_map_storage: true
+mtv_management_map_storage: false
 mtv_management_map_networks: true
 
 # vSphere Infrastructure Details
@@ -73,7 +73,7 @@ mtv_management_network_maps: *mtv_network_maps
 
 # Storage Mappings
 mtv_storage_maps: &mtv_storage_maps
-  - name: "test-storage-map"
+  - name: "chidebmockvc01-int-tt-local-host"
     namespace: "{{ mtv_namespace }}"
     source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
@@ -91,7 +91,7 @@ mtv_plans: &mtv_plans
     source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
     network_map: "test-network-map"
-    storage_map: "test-storage-map"
+    storage_map: "chidebmockvc01-int-tt-local-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
@@ -105,7 +105,7 @@ mtv_migrate_migration_request:
   source: "chidebmockvc01.int.tt.local"
   destination: "host"
   network_map: "test-network-map"
-  storage_map: "test-storage-map"
+  storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
