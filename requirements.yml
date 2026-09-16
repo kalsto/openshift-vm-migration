@@ -4,7 +4,6 @@ collections:
   - name: kubernetes.core
   - name: ansible.controller
     version: ">=4.5.0"
-  - name: infra.ah_configuration
 
   # VMware Inventory & Migration
   - name: community.vmware
