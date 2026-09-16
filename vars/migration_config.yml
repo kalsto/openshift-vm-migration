@@ -3,9 +3,9 @@
 # File: vars/migration_config.yml
 # ==============================================================================
 
-# OpenShift Cluster Authentication
-openshift_server: "{{ vault_openshift_host }}"
-openshift_api_key: "{{ k8s_token | default('') }}"
+# OpenShift Target Cluster Authentication
+openshift_server: "{{ vault_target_openshift_host }}"
+openshift_api_key: "{{ vault_target_openshift_token }}"
 openshift_validate_certs: false
 
 # MTV and Target Namespaces
@@ -81,7 +81,7 @@ mtv_storage_maps: &mtv_storage_maps
           storageClass: "{{ target_storage_class }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
-# Migration Plans (Injects source_vms passed from extra_vars)
+# Migration Plans
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
