@@ -97,13 +97,12 @@ credentials:
     state: "present"
 
   - name: "Target OpenShift Cluster API Credential"
-    description: "Credentials for target OpenShift Virtualization Cluster"
+    description: "Bearer Token for target OpenShift Virtualization Cluster"
     organization: "{{ aap_organization }}"
     credential_type: "OpenShift or Kubernetes API Bearer Token"
     inputs:
       host: "{{ vault_target_openshift_host }}"
-      username: "{{ vault_target_openshift_username }}"
-      password: "{{ vault_target_openshift_password }}"
+      bearer_token: "{{ vault_target_openshift_token }}"
     state: "present"
 
   - name: "GitHub Deploy Key Credential"
