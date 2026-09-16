@@ -3,9 +3,9 @@
 # File: vars/migration_config.yml
 # ==============================================================================
 
-# OpenShift Cluster Authentication (Dynamic lookups from AWX environment)
-openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
-openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
+# OpenShift Cluster Authentication
+openshift_server: "{{ vault_openshift_host }}"
+openshift_api_key: "{{ k8s_token | default('') }}"
 openshift_validate_certs: false
 
 # MTV and Target Namespaces
@@ -25,8 +25,8 @@ mtv_management_map_networks: true
 
 # vSphere Infrastructure Details
 vsphere_url: "{{ vault_vsphere_url }}"
-vsphere_user: "{{ lookup('env', 'VMWARE_USER') | default('', true) }}"
-vsphere_password: "{{ lookup('env', 'VMWARE_PASSWORD') | default('', true) }}"
+vsphere_user: "{{ vault_vcenter_username }}"
+vsphere_password: "{{ vault_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
 # Port Group & Storage Class Definitions
