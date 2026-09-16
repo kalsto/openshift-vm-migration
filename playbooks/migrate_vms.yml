@@ -5,14 +5,15 @@
   gather_facts: false
   run_once: true
 
-  # Injects AWX environment variables into every task and role run
-  environment:
-    K8S_AUTH_HOST: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
-    K8S_AUTH_API_KEY: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
-    K8S_AUTH_VERIFY_SSL: "false"
-
   vars_files:
-    - ../vars/migration_config.yml
+    - "../vars/vault.yml"
+    - "../vars/migration_config.yml"
+
+  # Injects connection details into every task and role run
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_VERIFY_SSL: "false"
 
   pre_tasks:
     - name: Build source_vms list from selected inventory hosts
@@ -39,6 +40,9 @@
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false
         state: present
         definition:
           apiVersion: v1
