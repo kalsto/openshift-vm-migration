@@ -94,7 +94,7 @@
             credential_type: "{{ item.credential_type }}"
             inputs: "{{ item.inputs }}"
             state: "{{ item.state | default('present') }}"
-          loop: "{{ credentials | default([]) }}"
+          loop: "{{ credentials }}"
 
         - name: Associate Galaxy Credentials with Organization
           ansible.controller.organization:

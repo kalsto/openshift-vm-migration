@@ -1,3 +1,4 @@
+---
 # ==============================================================================
 # AAP Predefined Resources
 # File: vars/aap_config.yml
@@ -18,8 +19,6 @@ ah_collection_remotes:
       - "redhat.openshift_virtualization"
       - "ansible.controller"
       - "kubernetes.core"
-      - "ansible.utils"
-      - "ansible.posix"
       - "vmware.vmware_rest"
 
   - name: "community"
@@ -27,12 +26,8 @@ ah_collection_remotes:
     requirements:
       - "community.vmware"
       - "community.general"
-      - "infra.aap_utilities"
       - "community.crypto"
-      - "containers.podman"
-      - "community.library_inventory_filtering_v1"
       - "community.postgresql"
-      - "vmware.vmware"
 
 # ------------------------------------------------------------------------------
 # Credentials
