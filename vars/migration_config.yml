@@ -1,4 +1,8 @@
----
+# ==============================================================================
+# Migration Configuration
+# File: vars/migration_config.yml
+# ==============================================================================
+
 # OpenShift Cluster Authentication (Dynamic lookups from AWX environment)
 openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
 openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
@@ -13,7 +17,7 @@ migration_plan_name: "vm-migration-plan"
 
 # Role Provider Validation Flags
 provider: "vsphere"
-mtv_management_source_target: "vmware"
+mtv_management_source_target: "chidebmockvc01.int.tt.local"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: true
@@ -42,7 +46,7 @@ mtv_management_secrets: *mtv_secrets
 
 # VMware Provider Definitions
 mtv_management_providers: &mtv_management_providers
-  - name: "vmware"
+  - name: "chidebmockvc01.int.tt.local"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
     url: "{{ vsphere_url }}"
@@ -55,7 +59,7 @@ mtv_management_providers: &mtv_management_providers
 mtv_network_maps: &mtv_network_maps
   - name: "vmware-host"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vmware"
+    source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
     map:
       - source:
@@ -68,7 +72,7 @@ mtv_management_network_maps: *mtv_network_maps
 mtv_storage_maps: &mtv_storage_maps
   - name: "vmware-host"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vmware"
+    source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
     map:
       - source:
@@ -81,7 +85,7 @@ mtv_management_storage_maps: *mtv_storage_maps
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "vmware"
+    source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
     network_map: "vmware-host"
     storage_map: "vmware-host"
@@ -94,7 +98,7 @@ mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
-  source: "vmware"
+  source: "chidebmockvc01.int.tt.local"
   destination: "host"
   network_map: "vmware-host"
   storage_map: "vmware-host"
