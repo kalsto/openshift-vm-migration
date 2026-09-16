@@ -70,7 +70,7 @@ mtv_management_network_maps: *mtv_network_maps
 
 # Storage Mappings
 mtv_storage_maps: &mtv_storage_maps
-  - name: "vmware-host"
+  - name: "test-storage-map"
     namespace: "{{ mtv_namespace }}"
     source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
@@ -88,7 +88,7 @@ mtv_plans: &mtv_plans
     source_provider: "chidebmockvc01.int.tt.local"
     destination_provider: "host"
     network_map: "vmware-host"
-    storage_map: "vmware-host"
+    storage_map: "test-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
 mtv_management_plans: *mtv_plans
@@ -101,7 +101,7 @@ mtv_migrate_migration_request:
   source: "chidebmockvc01.int.tt.local"
   destination: "host"
   network_map: "vmware-host"
-  storage_map: "vmware-host"
+  storage_map: "test-storage-map"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
