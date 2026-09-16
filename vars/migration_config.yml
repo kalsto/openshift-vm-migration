@@ -8,6 +8,9 @@ openshift_server: "{{ vault_target_openshift_host }}"
 openshift_api_key: "{{ vault_target_openshift_token }}"
 openshift_validate_certs: false
 
+# Warm Migration Flag (defaults to false/cold; override with warm_migration: true in AAP Extra Vars)
+is_warm: "{{ warm_migration | default(false) | bool }}"
+
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"
 target_namespace: "local-cluster"
@@ -91,6 +94,7 @@ mtv_plans: &mtv_plans
     storage_map: "test-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
+    warm: "{{ is_warm }}"
 mtv_management_plans: *mtv_plans
 
 # Migration Executions Request
@@ -106,3 +110,4 @@ mtv_migrate_migration_request:
   verify_plans_ready: true
   verify_migrations_complete: true
   vms: "{{ source_vms }}"
+  warm: "{{ is_warm }}"
