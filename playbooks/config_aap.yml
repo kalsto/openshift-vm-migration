@@ -112,7 +112,7 @@
             scm_url: "{{ item.scm_url }}"
             scm_credential: "{{ item.scm_credential }}"
             scm_branch: "{{ item.scm_branch }}"
-            scm_update_on_launch: true
+            scm_update_on_launch: "{{ item.scm_update_on_launch | default(false) }}"
             state: "{{ item.state | default('present') }}"
           loop: "{{ projects | default([]) }}"
 

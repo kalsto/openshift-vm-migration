@@ -1,14 +1,16 @@
 ---
 collections:
-  - name: amazon.aws
-  - name: community.postgresql
+  # OpenShift & AAP Automation
   - name: kubernetes.core
-  - name: ansible.posix
-  - name: ansible.utils
   - name: ansible.controller
     version: ">=4.5.0"
   - name: infra.ah_configuration
-  - name: awx.awx
+
+  # VMware Inventory & Migration
+  - name: community.vmware
   - name: https://github.com/redhat-cop/openshift_virtualization_migration.git
     type: git
     version: main
+
+  # Database Management
+  - name: community.postgresql
