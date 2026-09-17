@@ -50,6 +50,21 @@
           metadata:
             name: "{{ target_namespace }}"
 
+    - name: Ensure Global ForkliftController Uses VDDK Image
+      kubernetes.core.k8s:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: forklift.konveyor.io/v1alpha1
+          kind: ForkliftController
+          metadata:
+            name: forklift-controller
+            namespace: "{{ mtv_namespace }}"
+          spec:
+            vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+
     - name: Provision Secrets, Providers, Maps, and Migration Plans
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_management
