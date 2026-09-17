@@ -37,6 +37,18 @@
       ansible.builtin.set_fact:
         migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
 
+    - name: Power off source VMs in vSphere when performing cold migration
+      community.vmware.vmware_guest:
+        hostname: "{{ vsphere_url | regex_replace('^https?://', '') | regex_replace('/.*$', '') }}"
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_password }}"
+        validate_certs: false
+        name: "{{ item.name }}"
+        state: poweredoff
+      loop: "{{ source_vms }}"
+      when: not is_warm
+      delegate_to: localhost
+
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
