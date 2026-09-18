@@ -186,16 +186,6 @@
               file_storage_access_mode: ReadWriteOnce
               file_storage_storage_class: "{{ storage_class }}"
               redis_storage_class: "{{ storage_class }}"
-              affinity:
-                podAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    - labelSelector:
-                        matchExpressions:
-                          - key: app.kubernetes.io/name
-                            operator: In
-                            values:
-                              - automationhub-content
-                      topologyKey: kubernetes.io/hostname
               worker:
                 replicas: 1
               content:
@@ -211,6 +201,47 @@
 
             metrics:
               disabled: true
+
+    # -------------------------------------------------------------------------
+    # Fix Worker Node Affinity (Enforces RWO Storage Co-location)
+    # -------------------------------------------------------------------------
+    - name: Wait for aap-hub-worker deployment to exist
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: apps/v1
+        kind: Deployment
+        name: aap-hub-worker
+        namespace: "{{ aap_namespace }}"
+      register: worker_deploy
+      until: worker_deploy.resources | length > 0
+      retries: 30
+      delay: 5
+
+    - name: Patch aap-hub-worker deployment with podAffinity targeting content pod
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: patched
+        kind: Deployment
+        name: aap-hub-worker
+        namespace: "{{ aap_namespace }}"
+        definition:
+          spec:
+            template:
+              spec:
+                affinity:
+                  podAffinity:
+                    requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchExpressions:
+                            - key: app.kubernetes.io/name
+                              operator: In
+                              values:
+                                - automationhub-content
+                        topologyKey: kubernetes.io/hostname
 
     # -------------------------------------------------------------------------
     # Post-Deployment Checks & Configuration
