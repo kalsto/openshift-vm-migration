@@ -4,13 +4,6 @@
   connection: local
   gather_facts: false
 
-  vars:
-    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
-    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
-    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
-    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-    aap_instance_name: "{{ aap_instance_name | default('aap') }}"
-
   pre_tasks:
     - name: Dynamically load environment variables if env_target is defined
       ansible.builtin.include_vars:
@@ -35,7 +28,7 @@
     - name: Authenticate against OpenShift OAuth to obtain API Key
       kubernetes.core.k8s_auth:
         host: "{{ openshift_host }}"
-        username: "{{ openshift_username }}"
+        username: "{{ openshift_username | default('cluster-admin') }}"
         password: "{{ openshift_password }}"
         validate_certs: false
       register: k8s_auth_results
@@ -55,8 +48,8 @@
         state: absent
         api_version: aap.ansible.com/v1alpha1
         kind: AnsibleAutomationPlatform
-        name: "{{ aap_instance_name }}"
-        namespace: "{{ aap_namespace }}"
+        name: "{{ aap_instance_name | default('aap') }}"
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
         wait: false
 
     - name: Delete Operator Subscription
@@ -68,7 +61,7 @@
         api_version: operators.coreos.com/v1alpha1
         kind: Subscription
         name: ansible-automation-platform
-        namespace: "{{ aap_namespace }}"
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
         wait: false
 
     - name: Delete Operator Group
@@ -80,7 +73,7 @@
         api_version: operators.coreos.com/v1
         kind: OperatorGroup
         name: ansible-automation-platform-operator
-        namespace: "{{ aap_namespace }}"
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
         wait: false
 
     - name: Delete AAP Namespace
@@ -91,5 +84,5 @@
         state: absent
         api_version: v1
         kind: Namespace
-        name: "{{ aap_namespace }}"
+        name: "{{ aap_namespace | default('ansible-automation-platform') }}"
         wait: false
