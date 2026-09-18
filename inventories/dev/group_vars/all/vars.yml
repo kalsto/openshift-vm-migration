@@ -1,10 +1,16 @@
 ---
 # Environment Metadata
 environment_type: "dev"
-aap_namespace: "ansible-automation-platform-dev"
+aap_namespace: "ansible-automation-platform"
 aap_instance_name: "aap-dev"
 storage_class: "gp3-csi"
 aap_license_manifest: "{{ playbook_dir }}/../files/dev_manifest.zip"
+
+# OpenShift & RDS Pass-Throughs
+openshift_host: "{{ vault_openshift_host }}"
+openshift_username: "{{ vault_openshift_username }}"
+openshift_password: "{{ vault_openshift_password }}"
+fallback_aap_url: "{{ vault_fallback_aap_url }}"
 
 # OpenShift & RDS Pass-Throughs
 openshift_host: "{{ vault_openshift_host }}"
