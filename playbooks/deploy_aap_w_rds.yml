@@ -191,10 +191,10 @@
                   requiredDuringSchedulingIgnoredDuringExecution:
                     - labelSelector:
                         matchExpressions:
-                          - key: app.kubernetes.io/part-of
+                          - key: app.kubernetes.io/name
                             operator: In
                             values:
-                              - automationhub
+                              - automationhub-content
                       topologyKey: kubernetes.io/hostname
               worker:
                 replicas: 1
