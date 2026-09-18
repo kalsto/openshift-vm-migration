@@ -1,18 +1,17 @@
 ---
-# Environment Identifier
+# Environment Metadata
 environment_type: "dev"
-
-# OpenShift Target Cluster Settings
-openshift_host: "https://api.dev-cluster.example.com:443"
-openshift_username: "cluster-admin"
 aap_namespace: "ansible-automation-platform-dev"
 aap_instance_name: "aap-dev"
-
-# Storage & Deployment Settings
 storage_class: "gp3-csi"
 aap_license_manifest: "{{ playbook_dir }}/../files/dev_manifest.zip"
 
-# AWS & RDS Settings
+# OpenShift & RDS Pass-Throughs
+openshift_host: "{{ vault_openshift_host }}"
+openshift_username: "{{ vault_openshift_username }}"
+openshift_password: "{{ vault_openshift_password }}"
+fallback_aap_url: "{{ vault_fallback_aap_url }}"
+
 aws_region: "us-east-2"
 cluster_identifier: "dev-rosa-cluster"
 rds_instance_id: "aap-postgres-db-dev"
@@ -21,25 +20,25 @@ rds_sg_name: "aap-rds-sg-dev"
 db_engine_version: "15"
 db_instance_class: "db.m6g.large"
 allocated_storage_gb: 20
-db_master_user: "aap_admin_dev"
+db_master_user: "{{ vault_rds_master_user }}"
+db_master_password: "{{ vault_rds_password }}"
 db_app_user: "aap_user_dev"
+db_app_password: "{{ vault_rds_password }}"
 
-# K8s Database Secret Names
+# Secret Names
 gateway_db_secret: "rds-gateway-configuration"
 controller_db_secret: "rds-controller-configuration"
 hub_db_secret: "rds-hub-configuration"
 eda_db_secret: "rds-eda-configuration"
 
-# AAP Configuration Parameters
+# AAP Organization & Resources
 aap_organization: "Dev-Organization"
-fallback_aap_url: "https://aap-dev.apps.dev-cluster.example.com"
 
-# Automation Hub Remotes
 ah_collection_remotes:
   - name: "rh-certified"
-    url: "https://console.redhat.com/api/automation-hub/"
-    auth_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
-    token: "{{ rh_offline_token }}"
+    url: "{{ vault_automation_hub_url }}"
+    auth_url: "{{ vault_automation_hub_auth_url }}"
+    token: "{{ vault_rh_offline_token }}"
     requirements:
       - "redhat.openshift"
       - "redhat.openshift_virtualization"
@@ -47,16 +46,230 @@ ah_collection_remotes:
       - "kubernetes.core"
       - "vmware.vmware_rest"
   - name: "community"
-    url: "https://galaxy.ansible.com/api/"
+    url: "{{ vault_galaxy_url }}api/"
     requirements:
       - "community.vmware"
       - "community.general"
       - "community.crypto"
       - "community.postgresql"
 
-# Migration Parameters
+credentials:
+  - name: "Ansible Vault Credential"
+    description: "Vault password for decrypting playbook vault.yml files"
+    organization: "{{ aap_organization }}"
+    credential_type: "Vault"
+    inputs:
+      vault_password: "{{ vault_ansible_password }}"
+    state: "present"
+
+  - name: "Local Automation Hub Published"
+    description: "Internal Automation Hub Published Content"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_local_published_url }}"
+      token: "{{ vault_local_hub_token }}"
+    state: "present"
+
+  - name: "Local Automation Hub Community"
+    description: "Internal Automation Hub Community Content"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_local_community_url }}"
+      token: "{{ vault_local_hub_token }}"
+    state: "present"
+
+  - name: "Local Automation Hub Certified"
+    description: "Internal Automation Hub Red Hat Certified Content"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_local_certified_url }}"
+      token: "{{ vault_local_hub_token }}"
+    state: "present"
+
+  - name: "Red Hat Automation Hub Credential"
+    description: "Automation Hub API Token for Red Hat Certified Collections"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_automation_hub_url }}"
+      auth_url: "{{ vault_automation_hub_auth_url }}"
+      token: "{{ vault_rh_offline_token }}"
+    state: "present"
+
+  - name: "Ansible Galaxy Credential"
+    description: "Public Ansible Galaxy server for community collections"
+    organization: "{{ aap_organization }}"
+    credential_type: "Ansible Galaxy/Automation Hub API Token"
+    inputs:
+      url: "{{ vault_galaxy_url }}"
+    state: "present"
+
+  - name: "vCenter Credentials"
+    description: "Source VMware vCenter Credentials for VM Migration"
+    organization: "{{ aap_organization }}"
+    credential_type: "VMware vCenter"
+    inputs:
+      host: "{{ vault_vcenter_host }}"
+      username: "{{ vault_vcenter_username }}"
+      password: "{{ vault_vcenter_password }}"
+    state: "present"
+
+  - name: "Target OpenShift Cluster API Credential"
+    description: "Bearer Token for target OpenShift Virtualization Cluster"
+    organization: "{{ aap_organization }}"
+    credential_type: "OpenShift or Kubernetes API Bearer Token"
+    inputs:
+      host: "{{ vault_target_openshift_host }}"
+      bearer_token: "{{ vault_target_openshift_token }}"
+    state: "present"
+
+  - name: "GitHub Deploy Key Credential"
+    description: "SSH Private Key for GitHub SCM Repositories"
+    organization: "{{ aap_organization }}"
+    credential_type: "Source Control"
+    inputs:
+      ssh_key_data: "{{ vault_github_deploy_key_private }}"
+    state: "present"
+
+organizations:
+  - name: "{{ aap_organization }}"
+    galaxy_credentials:
+      - "Local Automation Hub Published"
+      - "Local Automation Hub Community"
+      - "Local Automation Hub Certified"
+      - "Red Hat Automation Hub Credential"
+      - "Ansible Galaxy Credential"
+    state: "present"
+
+projects:
+  - name: "tt-openshift-virt"
+    description: "Git repository containing VM migration playbooks"
+    organization: "{{ aap_organization }}"
+    scm_type: "git"
+    scm_url: "{{ vault_github_scm_url }}"
+    scm_credential: "GitHub Deploy Key Credential"
+    scm_branch: "dev"
+    scm_update_on_launch: false
+    state: "present"
+
+inventories:
+  - name: "VM Migration Inventory"
+    description: "Dynamic inventory synced directly from VMware vCenter"
+    organization: "{{ aap_organization }}"
+    source: "vmware"
+    credential: "vCenter Credentials"
+    source_vars:
+      plugin: community.vmware.vmware_vm_inventory
+      validate_certs: false
+      with_tags: false
+      strict: false
+      hostnames:
+        - name
+        - config.name
+    state: "present"
+
+job_templates:
+  - name: "01 - Execute OpenShift VM Migration"
+    organization: "{{ aap_organization }}"
+    project: "tt-openshift-virt"
+    inventory: "VM Migration Inventory"
+    playbook: "playbooks/migrate_vms.yml"
+    credentials:
+      - "vCenter Credentials"
+      - "Target OpenShift Cluster API Credential"
+      - "Ansible Vault Credential"
+    state: "present"
+
+# MTV & Migration Parameters
 mtv_namespace: "openshift-mtv"
 target_namespace: "dev-cluster"
+vsphere_url: "{{ vault_vsphere_url }}"
+vsphere_user: "{{ vault_vcenter_username }}"
+vsphere_password: "{{ vault_vcenter_password }}"
 vsphere_port_group: "segment-dev-migration"
 vsphere_datastore: "dev-workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
+
+openshift_server: "{{ vault_target_openshift_host }}"
+openshift_api_key: "{{ vault_target_openshift_token }}"
+
+provider: "vsphere"
+mtv_management_source_target: "{{ vault_vcenter_host }}"
+mtv_management_destination_target: "host"
+mtv_management_provider_namespace: "{{ mtv_namespace }}"
+mtv_management_map_storage: false
+mtv_management_map_networks: true
+vsphere_insecure_skip_verify: true
+
+mtv_secrets:
+  - name: "vsphere-credentials"
+    namespace: "{{ mtv_namespace }}"
+    user: "{{ vault_vcenter_username }}"
+    password: "{{ vault_vcenter_password }}"
+    insecureSkipVerify: "true"
+    url: "{{ vault_vsphere_url }}"
+mtv_management_secrets: "{{ mtv_secrets }}"
+
+mtv_management_providers:
+  - name: "{{ vault_vcenter_host }}"
+    namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
+    url: "{{ vault_vsphere_url }}"
+    secret: "vsphere-credentials"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
+
+mtv_network_maps:
+  - name: "test-network-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ vault_vcenter_host }}"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_port_group }}"
+        destination:
+          type: "pod"
+mtv_management_network_maps: "{{ mtv_network_maps }}"
+
+mtv_storage_maps:
+  - name: "test-storage-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ vault_vcenter_host }}"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_datastore }}"
+        destination:
+          storageClass: "{{ target_storage_class }}"
+mtv_management_storage_maps: "{{ mtv_storage_maps }}"
+
+mtv_plans:
+  - name: "{{ migration_plan_name | default('vm-migration-plan') }}"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ vault_vcenter_host }}"
+    destination_provider: "host"
+    network_map: "test-network-map"
+    storage_map: "test-storage-map"
+    target_namespace: "{{ target_namespace }}"
+    vms: "{{ source_vms | default([]) }}"
+    warm: "{{ is_warm | default(false) }}"
+mtv_management_plans: "{{ mtv_plans }}"
+
+mtv_migrate_migration_request:
+  plan_name: "{{ migration_plan_name | default('vm-migration-plan') }}"
+  mtv_namespace: "{{ mtv_namespace }}"
+  target_namespace: "{{ target_namespace }}"
+  source: "{{ vault_vcenter_host }}"
+  destination: "host"
+  network_map: "test-network-map"
+  storage_map: "test-storage-map"
+  start_migration: true
+  verify_plans_ready: true
+  verify_migrations_complete: true
+  vms: "{{ source_vms | default([]) }}"
+  warm: "{{ is_warm | default(false) }}"
