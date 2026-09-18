@@ -191,10 +191,10 @@
                   requiredDuringSchedulingIgnoredDuringExecution:
                     - labelSelector:
                         matchExpressions:
-                          - key: app.kubernetes.io/name
+                          - key: app.kubernetes.io/part-of
                             operator: In
                             values:
-                              - automationhub-content
+                              - automationhub
                       topologyKey: kubernetes.io/hostname
               worker:
                 replicas: 1
@@ -211,40 +211,6 @@
 
             metrics:
               disabled: true
-
-    # -------------------------------------------------------------------------
-    # Enforce Worker Node Placement
-    # -------------------------------------------------------------------------
-    - name: Wait for aap-hub-content pod to be assigned a node
-      kubernetes.core.k8s_info:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
-        api_version: v1
-        kind: Pod
-        namespace: "{{ aap_namespace }}"
-        label_selectors:
-          - "app.kubernetes.io/name=automationhub-content"
-      register: content_pod
-      until: content_pod.resources | length > 0 and content_pod.resources[0].spec.nodeName is defined
-      retries: 30
-      delay: 5
-
-    - name: Pin aap-hub-worker deployment directly to content pod node
-      kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
-        state: patched
-        kind: Deployment
-        name: aap-hub-worker
-        namespace: "{{ aap_namespace }}"
-        definition:
-          spec:
-            template:
-              spec:
-                nodeSelector:
-                  kubernetes.io/hostname: "{{ content_pod.resources[0].spec.nodeName }}"
 
     # -------------------------------------------------------------------------
     # Post-Deployment Checks & Configuration
