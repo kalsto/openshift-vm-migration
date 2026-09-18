@@ -2,7 +2,7 @@
 # Environment Metadata
 environment_type: "dev"
 aap_namespace: "ansible-automation-platform"
-aap_instance_name: "aap-dev"
+aap_instance_name: "aap"
 storage_class: "gp3-csi"
 aap_license_manifest: "{{ playbook_dir }}/../files/dev_manifest.zip"
 
