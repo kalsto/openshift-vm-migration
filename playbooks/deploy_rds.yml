@@ -4,52 +4,11 @@
   connection: local
   gather_facts: false
 
-  vars:
-    # AWS & Cluster Defaults
-    aws_region: "{{ aws_region | default('us-east-2') }}"
-    openshift_username: "{{ openshift_username | default('cluster-admin') }}"
-    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
-    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
-    
-    # Environment Naming
-    env_name: "{{ environment_type | default('dev') }}"
-    rds_instance_id: "{{ rds_instance_id | default('aap-postgres-db-' ~ env_name) }}"
-    rds_subnet_group_name: "{{ rds_subnet_group_name | default('aap-rds-subnet-group-' ~ env_name) }}"
-    rds_sg_name: "{{ rds_sg_name | default('aap-rds-sg-' ~ env_name) }}"
-    db_engine_version: "{{ db_engine_version | default('15') }}"
-    db_instance_class: "{{ db_instance_class | default('db.m6g.large') }}"
-    allocated_storage_gb: "{{ allocated_storage_gb | default(50) }}"
-    
-    # Database Usernames & Secrets
-    db_master_user: "{{ db_master_user | default('aap_admin') }}"
-    db_app_user: "{{ db_app_user | default('aap_user') }}"
-    db_master_password: "{{ db_master_password | default(vault_db_master_password | default(omit)) }}"
-    db_app_password: "{{ db_app_password | default(vault_db_app_password | default(omit)) }}"
-
-    # K8s Secret Names
-    gateway_db_secret: "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
-    controller_db_secret: "{{ controller_db_secret | default('rds-controller-configuration') }}"
-    hub_db_secret: "{{ hub_db_secret | default('rds-hub-configuration') }}"
-    eda_db_secret: "{{ eda_db_secret | default('rds-eda-configuration') }}"
-
-    # Target OpenShift Namespace
-    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-
   module_defaults:
     group/aws:
       region: "{{ aws_region }}"
       access_key: "{{ aws_access_key | default(omit) }}"
       secret_key: "{{ aws_secret_key | default(omit) }}"
-
-  pre_tasks:
-    - name: Dynamically load environment variables if env_target is defined
-      ansible.builtin.include_vars:
-        file: "{{ item }}"
-      loop:
-        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
-        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
-      when: env_target is defined
-      ignore_errors: true
 
   tasks:
     # -------------------------------------------------------------------------

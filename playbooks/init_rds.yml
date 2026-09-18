@@ -4,30 +4,6 @@
   connection: local
   gather_facts: false
 
-  vars:
-    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
-    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
-    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
-    rds_host: "{{ rds_host | default(vault_rds_host | default(omit)) }}"
-    rds_user: "{{ rds_user | default(vault_rds_master_user | default('dbadmin')) }}"
-    rds_password: "{{ rds_password | default(vault_rds_password | default(omit)) }}"
-
-    # K8s Database Secret Names
-    gateway_db_secret: "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
-    controller_db_secret: "{{ controller_db_secret | default('rds-controller-configuration') }}"
-    hub_db_secret: "{{ hub_db_secret | default('rds-hub-configuration') }}"
-
-  pre_tasks:
-    - name: Dynamically load environment variables if env_target is defined
-      ansible.builtin.include_vars:
-        file: "{{ item }}"
-      loop:
-        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
-        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
-      when: env_target is defined
-      ignore_errors: true
-
   tasks:
     - name: Authenticate against OpenShift OAuth
       kubernetes.core.k8s_auth:
@@ -80,7 +56,7 @@
                     image: registry.redhat.io/rhel9/postgresql-15
                     env:
                       - name: PGPASSWORD
-                        value: "{{ rds_password }}"
+                        value: "{{ db_master_password }}"
                       - name: PGSSLMODE
                         value: "require"
                     command:
@@ -91,11 +67,11 @@
                         echo "Connecting to {{ rds_host }}..."
 
                         for db in aap_gateway aap_controller aap_hub; do
-                          psql -h {{ rds_host }} -U {{ rds_user }} -d postgres -c "DROP DATABASE IF EXISTS $db WITH (FORCE);"
-                          psql -h {{ rds_host }} -U {{ rds_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ rds_user }};"
+                          psql -h {{ rds_host }} -U {{ db_master_user }} -d postgres -c "DROP DATABASE IF EXISTS $db WITH (FORCE);"
+                          psql -h {{ rds_host }} -U {{ db_master_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ db_master_user }};"
                         done
 
-                        psql -h {{ rds_host }} -U {{ rds_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
+                        psql -h {{ rds_host }} -U {{ db_master_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
                         echo "PostgreSQL initialization completed successfully!"
 
     - name: Wait for Job to Succeed
@@ -134,8 +110,8 @@
             host: "{{ rds_host }}"
             port: "5432"
             database: "{{ item.db }}"
-            username: "{{ rds_user }}"
-            password: "{{ rds_password }}"
+            username: "{{ db_master_user }}"
+            password: "{{ db_master_password }}"
             sslmode: "require"
             type: "unmanaged"
       loop:

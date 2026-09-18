@@ -5,38 +5,10 @@
   gather_facts: false
 
   vars:
-    # Environment & Cluster Settings
-    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
-    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
-    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
-    
-    # AAP Instance & Namespace Configuration
-    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-    aap_instance_name: "{{ aap_instance_name | default('aap') }}"
-    aap_license_manifest: "{{ aap_license_manifest | default(playbook_dir ~ '/../manifest.zip') }}"
-
-    # Storage Class Configuration
-    storage_class: "{{ storage_class | default('gp3-csi-rosa-kms') }}"
-
-    # K8s Database Secret References
-    gateway_db_secret: "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
-    controller_db_secret: "{{ controller_db_secret | default('rds-controller-configuration') }}"
-    hub_db_secret: "{{ hub_db_secret | default('rds-hub-configuration') }}"
-
     # Optional Certificate File Paths
     custom_ca_cert_file: "{{ playbook_dir }}/../certs/internal-ca.crt"
     custom_tls_cert_file: "{{ playbook_dir }}/../certs/tls.crt"
     custom_tls_key_file: "{{ playbook_dir }}/../certs/tls.key"
-
-  pre_tasks:
-    - name: Dynamically load environment variables if env_target is defined
-      ansible.builtin.include_vars:
-        file: "{{ item }}"
-      loop:
-        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
-        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
-      when: env_target is defined
-      ignore_errors: true
 
   tasks:
     # -------------------------------------------------------------------------

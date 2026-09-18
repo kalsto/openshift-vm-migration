@@ -1,0 +1,60 @@
+---
+# ==============================================================================
+# Sample Vault Variables Template (Safe for Public Repositories)
+# File: vars/vault.example.yml
+# Copy this file to vars/vault.yml and populate it with real credentials.
+# ==============================================================================
+
+# Ansible Vault Decryption Password
+vault_ansible_password: "PA8AW8X!3IyPCcwr9#lv"
+
+# ==============================================================================
+# OpenShift Cluster Authentication (Primary AAP Hosting Cluster)
+# ==============================================================================
+vault_openshift_username: "cluster-admin"
+vault_openshift_password: "4kEtG-WrptD-YhwWg-r4Hiq"
+vault_openshift_host: "https://api.tt-rosa-int.6gxv.p3.openshiftapps.com:443"
+vault_openshift_console_url: "https://console-openshift-console.apps.rosa.tt-rosa-int.6gxv.p3.openshiftapps.com"
+vault_fallback_aap_url: "https://aap-ansible-automation-platform.apps.rosa.tt-rosa-int.6gxv.p3.openshiftapps.com"
+
+# ==============================================================================
+# Separate Target OpenShift Cluster Credential (For MTV Migration Target)
+# ==============================================================================
+vault_target_openshift_host: "https://10.201.126.100:6443" # "https://api.m-ty-ove.m-ty.debesys.net:6443"
+vault_target_openshift_token: "sha256~llhqNz4lsseLM0Esm_E-t6YU4bAklT1BfXZ5RMoF0_w"
+
+# RDS PostgreSQL Credentials
+vault_rds_host: "tt-openshift-rosa-int-rds.chucw2g8qwwj.eu-west-1.rds.amazonaws.com"
+vault_rds_master_user: "dbadmin"
+vault_rds_password: "Z6H_h38]C_BKePn!:[A<~d8[TzZp"
+
+# Local ROSA Automation Hub Credentials & Endpoints
+vault_local_hub_token: "57cnXCWXFPNXOjeyVDefPgCKxfhaa4"
+vault_local_published_url: "https://aap-ansible-automation-platform.apps.rosa.tt-rosa-int.6gxv.p3.openshiftapps.com/api/galaxy/content/published/"
+vault_local_community_url: "https://aap-ansible-automation-platform.apps.rosa.tt-rosa-int.6gxv.p3.openshiftapps.com/api/galaxy/content/community/"
+vault_local_certified_url: "https://aap-ansible-automation-platform.apps.rosa.tt-rosa-int.6gxv.p3.openshiftapps.com/api/galaxy/content/rh-certified/"
+
+# Red Hat Cloud Console Credentials & Endpoints
+vault_rh_offline_token: "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI0NzQzYTkzMC03YmJiLTRkZGQtOTgzMS00ODcxNGRlZDc0YjUifQ.eyJleHAiOjE3OTAxOTAwNTMsImlhdCI6MTc4NzU5ODA1MywianRpIjoiOGJiNTEyMzUtN2U2NS04NzgwLWI2MzctZmU2YWVkYmZkNGE2IiwiaXNzIjoiaHR0cHM6Ly9zc28ucmVkaGF0LmNvbS9hdXRoL3JlYWxtcy9yZWRoYXQtZXh0ZXJuYWwiLCJhdWQiOiJodHRwczovL3Nzby5yZWRoYXQuY29tL2F1dGgvcmVhbG1zL3JlZGhhdC1leHRlcm5hbCIsInN1YiI6IjU5NDA1MTE4IiwidHlwIjoiT2ZmbGluZSIsImF6cCI6ImNsb3VkLXNlcnZpY2VzIiwibm9uY2UiOiJiYTlhN2VlYS1jZmMxLTQ3MzUtODNjNy02ZWY3Y2U2NzdmMzciLCJzaWQiOiI0NTRmNTc0Yy05M2FhLTM1MGEtMzc4ZC1jMWE1NjdhYjhlNjgiLCJzY29wZSI6Im9wZW5pZCBhcGkuY29uc29sZSBiYXNpYyByb2xlcyB3ZWItb3JpZ2lucyBjbGllbnRfdHlwZS5wcmVfa2MyNSBhcGkuYXNrX3JlZF9oYXQgb2ZmbGluZV9hY2Nlc3MifQ.B14J2vJKiIE80hsv7Wevxtus0EPGoebF9Hh9369EbF-A5kbY7cklj_QkCHgxTNzb5MvUIEQhdZADfOwBZB66MQ"
+vault_automation_hub_url: "https://console.redhat.com/api/automation-hub/content/published/"
+vault_automation_hub_validated_url: "https://console.redhat.com/api/automation-hub/content/validated/"
+vault_automation_hub_auth_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+vault_galaxy_url: "https://galaxy.ansible.com/"
+
+# VMware vCenter / vSphere Credentials & Endpoints
+vault_vcenter_username: "svc-mtv-migration@vsphere.local"
+vault_vcenter_password: "N%R3Sa*oUbx0IvqhF9ubre6P0^jfA%lK"
+vault_vcenter_host: "172.17.250.170"
+vault_vsphere_url: "https://172.17.250.170/sdk"
+
+# Source Control / GitHub
+vault_github_scm_url: "git@github.com:tradingtechnologies/aap.git"
+vault_github_deploy_key_private: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+  QyNTUxOQAAACCsohXes/kB3YJyOX6yMjnKz83kmH0ZMVI0w3tQv6c+FwAAALD36jW29+o1
+  tgAAAAtzc2gtZWQyNTUxOQAAACCsohXes/kB3YJyOX6yMjnKz83kmH0ZMVI0w3tQv6c+Fw
+  AAAEC8+XCu/yviKA+5EorAIl53w5RFcA3HZofqL5GmLiam6qyiFd6z+QHdgnI5frIyOcrP
+  zeSYfRkxUjTDe1C/pz4XAAAAJmp1c3RpbnZhbndheUBKdXN0aW5zLU1hY0Jvb2stQWlyLm
+  xvY2FsAQIDBAUGBw==
+  -----END OPENSSH PRIVATE KEY-----
