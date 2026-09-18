@@ -3,7 +3,7 @@
 environment_type: "dev"
 aap_namespace: "ansible-automation-platform"
 aap_instance_name: "aap"
-storage_class: "gp3-csi"
+storage_class: "gp3-csi-rosa-kms"
 aap_license_manifest: "{{ playbook_dir }}/../files/dev_manifest.zip"
 
 # OpenShift & RDS Pass-Throughs
