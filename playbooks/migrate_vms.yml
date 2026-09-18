@@ -5,17 +5,16 @@
   gather_facts: false
   run_once: true
 
-  vars_files:
-    - "../vars/vault.yml"
-    - "../vars/migration_config.yml"
-
-  # Injects connection details into every task and role run
-  environment:
-    K8S_AUTH_HOST: "{{ openshift_server }}"
-    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-    K8S_AUTH_VERIFY_SSL: "false"
-
   pre_tasks:
+    - name: Dynamically load environment variables if env_target is defined
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
+
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
         source_vms: "{{ raw_vms_list | from_yaml }}"
@@ -46,8 +45,13 @@
         name: "{{ item.name }}"
         state: poweredoff
       loop: "{{ source_vms }}"
-      when: not is_warm
+      when: not (is_warm | default(false) | bool)
       delegate_to: localhost
+
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_VERIFY_SSL: "false"
 
   tasks:
     - name: Ensure Target Namespace Exists

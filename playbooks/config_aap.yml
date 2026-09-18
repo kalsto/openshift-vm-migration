@@ -9,13 +9,22 @@
     - infra.ah_configuration
     - kubernetes.core
 
-  vars_files:
-    - "../vars/vault.yml"
-    - "../vars/aap_config.yml"
-
   vars:
-    aap_namespace: "ansible-automation-platform"
-    openshift_host: "{{ vault_openshift_host }}"
+    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
+    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
+    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
+    fallback_aap_url: "{{ fallback_aap_url | default(vault_fallback_aap_url | default('')) }}"
+
+  pre_tasks:
+    - name: Dynamically load environment variables if env_target parameter is provided
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
 
   tasks:
     # -------------------------------------------------------------------------
@@ -24,8 +33,8 @@
     - name: Authenticate against OpenShift Cluster
       kubernetes.core.k8s_auth:
         host: "{{ openshift_host }}"
-        username: "{{ vault_openshift_username }}"
-        password: "{{ vault_openshift_password }}"
+        username: "{{ openshift_username }}"
+        password: "{{ openshift_password }}"
         validate_certs: false
       register: k8s_auth_results
 
@@ -55,12 +64,12 @@
 
     - name: Set Connection Facts
       ansible.builtin.set_fact:
-        aap_admin_password: "{{ (gateway_secret.resources[0].data.password | b64decode) if (gateway_secret.resources | default([]) | length > 0) else vault_openshift_password }}"
-        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else vault_fallback_aap_url }}"
+        aap_admin_password: "{{ (gateway_secret.resources[0].data.password | b64decode) if (gateway_secret.resources | default([]) | length > 0) else openshift_password }}"
+        aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else fallback_aap_url }}"
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # 2. Configure Local Automation Hub Remotes (No Sync Trigger)
+    # 2. Configure Local Automation Hub Remotes
     # -------------------------------------------------------------------------
     - name: Configure Local Automation Hub Collection Remotes
       infra.ah_configuration.collection_remote:
@@ -94,7 +103,7 @@
             credential_type: "{{ item.credential_type }}"
             inputs: "{{ item.inputs }}"
             state: "{{ item.state | default('present') }}"
-          loop: "{{ credentials }}"
+          loop: "{{ credentials | default([]) }}"
 
         - name: Associate Galaxy Credentials with Organization
           ansible.controller.organization:

@@ -5,34 +5,46 @@
   gather_facts: false
   
   vars:
-    # Cluster Configuration (Passed via extra vars or overridden)
-    openshift_username: "cluster-admin"
+    # Cluster Configuration
+    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
+    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
+    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
     
     # AAP Configuration
-    aap_namespace: "ansible-automation-platform"
-    aap_instance_name: "aap"
-    aap_license_manifest: "{{ playbook_dir }}/../manifest.zip"
+    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+    aap_instance_name: "{{ aap_instance_name | default('aap') }}"
+    aap_license_manifest: "{{ aap_license_manifest | default(playbook_dir ~ '/../manifest.zip') }}"
 
-    # ROSA KMS StorageClass (Defaults to working KMS SC; override with -e storage_class=...)
-    storage_class: "gp3-csi-rosa-kms"
+    # StorageClass
+    storage_class: "{{ storage_class | default('gp3-csi-rosa-kms') }}"
 
-    # Certificate Paths (Optional: Checked at runtime)
+    # Certificate Paths
     custom_ca_cert_file: "{{ playbook_dir }}/../certs/internal-ca.crt"
     custom_tls_cert_file: "{{ playbook_dir }}/../certs/tls.crt"
     custom_tls_key_file: "{{ playbook_dir }}/../certs/tls.key"
+
+  pre_tasks:
+    - name: Dynamically load environment variables if env_target is defined
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
 
   tasks:
     # -------------------------------------------------------------------------
     # Pre-check & OpenShift Authentication
     # -------------------------------------------------------------------------
-    - name: Validate that required extra variables are passed via -e
+    - name: Validate that required extra variables are present
       ansible.builtin.assert:
         that:
           - openshift_host is defined and openshift_host | length > 0
           - openshift_password is defined and openshift_password | length > 0
         fail_msg: >-
           Missing required extra vars! Please ensure both openshift_host 
-          and openshift_password are passed via -e flags.
+          and openshift_password are passed or defined in inventory.
         success_msg: "All required OpenShift extra variables verified."
 
     - name: Authenticate against OpenShift OAuth to obtain API Key
@@ -111,7 +123,7 @@
       when: tls_cert_stats.results | map(attribute='stat.exists') | min
 
     # -------------------------------------------------------------------------
-    # Operator Installation (AAP 2.7 Channel)
+    # Operator Installation
     # -------------------------------------------------------------------------
     - name: Create Operator Group
       kubernetes.core.k8s:
@@ -163,7 +175,7 @@
       delay: 10
 
     # -------------------------------------------------------------------------
-    # AAP Instance Deployment (AAP 2.7 with ROSA KMS StorageClass)
+    # AAP Instance Deployment
     # -------------------------------------------------------------------------
     - name: Deploy Ansible Automation Platform Instance
       kubernetes.core.k8s:
@@ -181,7 +193,6 @@
             route_host: "{{ custom_hostname | default(omit) }}"
             image_pull_policy: IfNotPresent
 
-            # Explicit StorageClass Bindings (Nested & Root levels)
             postgres_storage_class: "{{ storage_class }}"
             database:
               postgres_storage_class: "{{ storage_class }}"
@@ -189,12 +200,10 @@
             bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
             route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
 
-            # Controller Configuration
             controller:
               disabled: false
               replicas: 2
 
-            # Automation Hub Configuration
             hub:
               disabled: false
               file_storage_access_mode: ReadWriteOnce
@@ -216,7 +225,6 @@
               api:
                 replicas: 1
 
-            # Disabled Unused Components
             eda:
               disabled: true
 
@@ -240,7 +248,7 @@
         namespace: "{{ aap_namespace }}"
       register: gateway_secret
       until: gateway_secret.resources | length > 0
-      retries: 90    # 15 minutes total wait window for ROSA DB initialization
+      retries: 90
       delay: 10
 
     - name: Extract Gateway Admin Password
@@ -305,7 +313,7 @@
           - "  URL:           {{ aap_url }}"
           - "  Username:      admin"
           - "  Password:      {{ aap_admin_password }}"
-          - "  Database:      In-Cluster PostgreSQL (aap-postgres-15-0)  "
+          - "  Database:      In-Cluster PostgreSQL               "
           - "  Storage Class: {{ storage_class }}"
           - "  CA Bundle:     {{ 'Applied (aap-custom-ca-secret)' if ca_cert_stat.stat.exists else 'None' }}"
           - "  TLS Secret:    {{ 'Applied (aap-route-tls-secret)' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else 'Default OpenShift Ingress' }}"

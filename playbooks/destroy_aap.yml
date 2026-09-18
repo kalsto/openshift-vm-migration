@@ -4,26 +4,33 @@
   connection: local
   gather_facts: false
 
-  vars_files:
-    - "../vars/vault.yml"
-
   vars:
-    openshift_host: "{{ vault_openshift_host }}"
-    openshift_password: "{{ vault_openshift_password }}"
-    openshift_username: "{{ vault_openshift_username | default('cluster-admin') }}"
-    aap_namespace: "ansible-automation-platform"
-    aap_instance_name: "aap"
+    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
+    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
+    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
+    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+    aap_instance_name: "{{ aap_instance_name | default('aap') }}"
+
+  pre_tasks:
+    - name: Dynamically load environment variables if env_target is defined
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
 
   tasks:
     # -------------------------------------------------------------------------
     # Pre-check & OpenShift Authentication
     # -------------------------------------------------------------------------
-    - name: Validate that required extra variables are passed via -e
+    - name: Validate that required extra variables are present
       ansible.builtin.assert:
         that:
           - openshift_host is defined and openshift_host | length > 0
           - openshift_password is defined and openshift_password | length > 0
-        fail_msg: "Missing required extra vars! Ensure openshift_host and openshift_password are passed via -e."
+        fail_msg: "Missing required extra vars! Ensure openshift_host and openshift_password are specified."
 
     - name: Authenticate against OpenShift OAuth to obtain API Key
       kubernetes.core.k8s_auth:
@@ -38,7 +45,7 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # Teardown Tasks (Explicit api_key pass)
+    # Teardown Tasks
     # -------------------------------------------------------------------------
     - name: Delete AAP Custom Resource Instance
       kubernetes.core.k8s:

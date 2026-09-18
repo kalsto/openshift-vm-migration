@@ -4,17 +4,29 @@
   connection: local
   gather_facts: false
 
-  vars_files:
-    - "../vars/vault.yml"
-
   vars:
-    aap_namespace: "ansible-automation-platform"
-    openshift_host: "{{ vault_openshift_host }}"
-    openshift_username: "{{ vault_openshift_username | default('cluster-admin') }}"
-    openshift_password: "{{ vault_openshift_password }}"
-    rds_host: "{{ vault_rds_host }}"
-    rds_user: "{{ vault_rds_master_user | default('dbadmin') }}"
-    rds_password: "{{ vault_rds_password }}"
+    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
+    openshift_username: "{{ openshift_username | default(vault_openshift_username | default('cluster-admin')) }}"
+    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
+    rds_host: "{{ rds_host | default(vault_rds_host | default(omit)) }}"
+    rds_user: "{{ rds_user | default(vault_rds_master_user | default('dbadmin')) }}"
+    rds_password: "{{ rds_password | default(vault_rds_password | default(omit)) }}"
+
+    # K8s Database Secret Names
+    gateway_db_secret: "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
+    controller_db_secret: "{{ controller_db_secret | default('rds-controller-configuration') }}"
+    hub_db_secret: "{{ hub_db_secret | default('rds-hub-configuration') }}"
+
+  pre_tasks:
+    - name: Dynamically load environment variables if env_target is defined
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
 
   tasks:
     - name: Authenticate against OpenShift OAuth
@@ -78,13 +90,11 @@
                         set -e
                         echo "Connecting to {{ rds_host }}..."
 
-                        # Force drop and recreate databases to wipe old encrypted data matching deleted secrets
                         for db in aap_gateway aap_controller aap_hub; do
                           psql -h {{ rds_host }} -U {{ rds_user }} -d postgres -c "DROP DATABASE IF EXISTS $db WITH (FORCE);"
                           psql -h {{ rds_host }} -U {{ rds_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ rds_user }};"
                         done
 
-                        # Create hstore extension on Automation Hub database
                         psql -h {{ rds_host }} -U {{ rds_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
                         echo "PostgreSQL initialization completed successfully!"
 
@@ -129,6 +139,6 @@
             sslmode: "require"
             type: "unmanaged"
       loop:
-        - { name: "rds-gateway-configuration", db: "aap_gateway" }
-        - { name: "rds-controller-configuration", db: "aap_controller" }
-        - { name: "rds-hub-configuration", db: "aap_hub" }
+        - { name: "{{ gateway_db_secret }}", db: "aap_gateway" }
+        - { name: "{{ controller_db_secret }}", db: "aap_controller" }
+        - { name: "{{ hub_db_secret }}", db: "aap_hub" }

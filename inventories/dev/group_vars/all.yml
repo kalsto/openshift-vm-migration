@@ -1,0 +1,62 @@
+---
+# Environment Identifier
+environment_type: "dev"
+
+# OpenShift Target Cluster Settings
+openshift_host: "https://api.dev-cluster.example.com:443"
+openshift_username: "cluster-admin"
+aap_namespace: "ansible-automation-platform-dev"
+aap_instance_name: "aap-dev"
+
+# Storage & Deployment Settings
+storage_class: "gp3-csi"
+aap_license_manifest: "{{ playbook_dir }}/../files/dev_manifest.zip"
+
+# AWS & RDS Settings
+aws_region: "us-east-2"
+cluster_identifier: "dev-rosa-cluster"
+rds_instance_id: "aap-postgres-db-dev"
+rds_subnet_group_name: "aap-rds-subnet-group-dev"
+rds_sg_name: "aap-rds-sg-dev"
+db_engine_version: "15"
+db_instance_class: "db.m6g.large"
+allocated_storage_gb: 20
+db_master_user: "aap_admin_dev"
+db_app_user: "aap_user_dev"
+
+# K8s Database Secret Names
+gateway_db_secret: "rds-gateway-configuration"
+controller_db_secret: "rds-controller-configuration"
+hub_db_secret: "rds-hub-configuration"
+eda_db_secret: "rds-eda-configuration"
+
+# AAP Configuration Parameters
+aap_organization: "Dev-Organization"
+fallback_aap_url: "https://aap-dev.apps.dev-cluster.example.com"
+
+# Automation Hub Remotes
+ah_collection_remotes:
+  - name: "rh-certified"
+    url: "https://console.redhat.com/api/automation-hub/"
+    auth_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+    token: "{{ rh_offline_token }}"
+    requirements:
+      - "redhat.openshift"
+      - "redhat.openshift_virtualization"
+      - "ansible.controller"
+      - "kubernetes.core"
+      - "vmware.vmware_rest"
+  - name: "community"
+    url: "https://galaxy.ansible.com/api/"
+    requirements:
+      - "community.vmware"
+      - "community.general"
+      - "community.crypto"
+      - "community.postgresql"
+
+# Migration Parameters
+mtv_namespace: "openshift-mtv"
+target_namespace: "dev-cluster"
+vsphere_port_group: "segment-dev-migration"
+vsphere_datastore: "dev-workloadshare"
+target_storage_class: "ocs-external-storagecluster-ceph-rbd"

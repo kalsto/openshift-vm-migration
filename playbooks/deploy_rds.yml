@@ -5,24 +5,35 @@
   gather_facts: false
 
   vars:
-    # AWS & Cluster Defaults (Override via -e)
-    aws_region: "us-east-2"
-    openshift_username: "cluster-admin"
+    # AWS & Cluster Defaults
+    aws_region: "{{ aws_region | default('us-east-2') }}"
+    openshift_username: "{{ openshift_username | default('cluster-admin') }}"
+    openshift_host: "{{ openshift_host | default(vault_openshift_host | default(omit)) }}"
+    openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
     
-    # RDS Instance Configuration
-    rds_instance_id: "aap-postgres-db"
-    rds_subnet_group_name: "aap-rds-subnet-group"
-    rds_sg_name: "aap-rds-sg"
-    db_engine_version: "15"
-    db_instance_class: "db.m6g.large"
-    allocated_storage_gb: 50
+    # Environment Naming
+    env_name: "{{ environment_type | default('dev') }}"
+    rds_instance_id: "{{ rds_instance_id | default('aap-postgres-db-' ~ env_name) }}"
+    rds_subnet_group_name: "{{ rds_subnet_group_name | default('aap-rds-subnet-group-' ~ env_name) }}"
+    rds_sg_name: "{{ rds_sg_name | default('aap-rds-sg-' ~ env_name) }}"
+    db_engine_version: "{{ db_engine_version | default('15') }}"
+    db_instance_class: "{{ db_instance_class | default('db.m6g.large') }}"
+    allocated_storage_gb: "{{ allocated_storage_gb | default(50) }}"
     
-    # Database Usernames
-    db_master_user: "aap_admin"
-    db_app_user: "aap_user"
+    # Database Usernames & Secrets
+    db_master_user: "{{ db_master_user | default('aap_admin') }}"
+    db_app_user: "{{ db_app_user | default('aap_user') }}"
+    db_master_password: "{{ db_master_password | default(vault_db_master_password | default(omit)) }}"
+    db_app_password: "{{ db_app_password | default(vault_db_app_password | default(omit)) }}"
+
+    # K8s Secret Names
+    gateway_db_secret: "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
+    controller_db_secret: "{{ controller_db_secret | default('rds-controller-configuration') }}"
+    hub_db_secret: "{{ hub_db_secret | default('rds-hub-configuration') }}"
+    eda_db_secret: "{{ eda_db_secret | default('rds-eda-configuration') }}"
 
     # Target OpenShift Namespace
-    aap_namespace: "ansible-automation-platform"
+    aap_namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
 
   module_defaults:
     group/aws:
@@ -30,24 +41,31 @@
       access_key: "{{ aws_access_key | default(omit) }}"
       secret_key: "{{ aws_secret_key | default(omit) }}"
 
+  pre_tasks:
+    - name: Dynamically load environment variables if env_target is defined
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
+
   tasks:
     # -------------------------------------------------------------------------
     # Pre-check: Validate Extra Vars (-e)
     # -------------------------------------------------------------------------
-    - name: Validate that all required extra variables are passed via -e
+    - name: Validate that all required connection variables are present
       ansible.builtin.assert:
         that:
           - cluster_identifier is defined and cluster_identifier | length > 0
-          - aws_access_key is defined and aws_access_key | length > 0
-          - aws_secret_key is defined and aws_secret_key | length > 0
           - openshift_host is defined and openshift_host | length > 0
           - openshift_password is defined and openshift_password | length > 0
           - db_master_password is defined and db_master_password | length > 0
           - db_app_password is defined and db_app_password | length > 0
         fail_msg: >-
-          Missing required extra vars! Ensure cluster_identifier, aws_access_key, 
-          aws_secret_key, openshift_host, openshift_password, db_master_password, 
-          and db_app_password are passed via -e.
+          Missing required variables! Ensure cluster_identifier, openshift_host, 
+          openshift_password, db_master_password, and db_app_password are provided.
 
     # -------------------------------------------------------------------------
     # Phase 1: Discover Actual ROSA Cluster VPC & Subnets
@@ -208,7 +226,6 @@
                         set -e
                         echo "Connecting to {{ rds_db.endpoint.address }}..."
 
-                        # Create application user
                         psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -c "
                           DO \$\$
                           BEGIN
@@ -219,13 +236,11 @@
                           \$\$;
                         "
 
-                        # Create databases for Gateway, Controller, Hub, and EDA
                         for db in aap_gateway aap_controller aap_hub aap_eda; do
                           psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
                           psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d postgres -c "CREATE DATABASE $db OWNER {{ db_app_user }};"
                         done
 
-                        # Create hstore extension on Automation Hub database
                         psql -h {{ rds_db.endpoint.address }} -U {{ db_master_user }} -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
                         echo "PostgreSQL initialization completed successfully!"
 
@@ -258,7 +273,7 @@
           apiVersion: v1
           kind: Secret
           metadata:
-            name: rds-gateway-configuration
+            name: "{{ gateway_db_secret }}"
             namespace: "{{ aap_namespace }}"
           type: Opaque
           stringData:
@@ -280,7 +295,7 @@
           apiVersion: v1
           kind: Secret
           metadata:
-            name: rds-controller-configuration
+            name: "{{ controller_db_secret }}"
             namespace: "{{ aap_namespace }}"
           type: Opaque
           stringData:
@@ -302,7 +317,7 @@
           apiVersion: v1
           kind: Secret
           metadata:
-            name: rds-hub-configuration
+            name: "{{ hub_db_secret }}"
             namespace: "{{ aap_namespace }}"
           type: Opaque
           stringData:
@@ -324,7 +339,7 @@
           apiVersion: v1
           kind: Secret
           metadata:
-            name: rds-eda-configuration
+            name: "{{ eda_db_secret }}"
             namespace: "{{ aap_namespace }}"
           type: Opaque
           stringData:
@@ -351,8 +366,8 @@
           - "  App User:     {{ db_app_user }}"
           - "  Databases:    aap_gateway, aap_controller, aap_hub, aap_eda"
           - "  K8s Secrets Created in '{{ aap_namespace }}':"
-          - "    - rds-gateway-configuration"
-          - "    - rds-controller-configuration"
-          - "    - rds-hub-configuration"
-          - "    - rds-eda-configuration"
+          - "    - {{ gateway_db_secret }}"
+          - "    - {{ controller_db_secret }}"
+          - "    - {{ hub_db_secret }}"
+          - "    - {{ eda_db_secret }}"
           - "===================================================="
