@@ -237,7 +237,7 @@ mtv_network_maps:
 mtv_management_network_maps: "{{ mtv_network_maps }}"
 
 mtv_storage_maps:
-  - name: "chidebmockvc01-int-tt-local-host"
+  - name: "test-storage-map"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ vault_vcenter_host }}"
     destination_provider: "host"
@@ -254,7 +254,7 @@ mtv_plans:
     source_provider: "{{ vault_vcenter_host }}"
     destination_provider: "host"
     network_map: "test-network-map"
-    storage_map: "chidebmockvc01-int-tt-local-host"
+    storage_map: "test-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms | default([]) }}"
     warm: "{{ is_warm | default(false) }}"
@@ -267,7 +267,7 @@ mtv_migrate_migration_request:
   source: "{{ vault_vcenter_host }}"
   destination: "host"
   network_map: "test-network-map"
-  storage_map: "chidebmockvc01-int-tt-local-host"
+  storage_map: "test-storage-map"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true

@@ -6,15 +6,6 @@
   run_once: true
 
   pre_tasks:
-    - name: Dynamically load environment variables if env_target is defined
-      ansible.builtin.include_vars:
-        file: "{{ item }}"
-      loop:
-        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
-        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
-      when: env_target is defined
-      ignore_errors: true
-
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
         source_vms: "{{ raw_vms_list | from_yaml }}"
@@ -39,8 +30,8 @@
     - name: Power off source VMs in vSphere when performing cold migration
       community.vmware.vmware_guest:
         hostname: "{{ vsphere_url | regex_replace('^https?://', '') | regex_replace('/.*$', '') }}"
-        username: "{{ vsphere_user }}"
-        password: "{{ vsphere_password }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
         validate_certs: false
         name: "{{ item.name }}"
         state: poweredoff
@@ -49,15 +40,15 @@
       delegate_to: localhost
 
   environment:
-    K8S_AUTH_HOST: "{{ openshift_server }}"
-    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_HOST: "{{ openshift_host }}"
+    K8S_AUTH_API_KEY: "{{ k8s_token | default(openshift_password) }}"
     K8S_AUTH_VERIFY_SSL: "false"
 
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token | default(omit) }}"
         validate_certs: false
         state: present
         definition:
@@ -68,8 +59,8 @@
 
     - name: Ensure Global ForkliftController Uses VDDK Image
       kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token | default(omit) }}"
         validate_certs: false
         state: present
         definition:

@@ -16,20 +16,7 @@
     openshift_password: "{{ openshift_password | default(vault_openshift_password | default(omit)) }}"
     fallback_aap_url: "{{ fallback_aap_url | default(vault_fallback_aap_url | default('')) }}"
 
-  pre_tasks:
-    - name: Dynamically load environment variables if env_target parameter is provided
-      ansible.builtin.include_vars:
-        file: "{{ item }}"
-      loop:
-        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
-        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
-      when: env_target is defined
-      ignore_errors: true
-
   tasks:
-    # -------------------------------------------------------------------------
-    # 1. Fetch Cluster Auth & Target AAP Credentials
-    # -------------------------------------------------------------------------
     - name: Authenticate against OpenShift Cluster
       kubernetes.core.k8s_auth:
         host: "{{ openshift_host }}"
@@ -68,9 +55,6 @@
         aap_url: "{{ ('https://' ~ aap_route.resources[0].spec.host) if (aap_route.resources | default([]) | length > 0) else fallback_aap_url }}"
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
-    # -------------------------------------------------------------------------
-    # 2. Configure Local Automation Hub Remotes
-    # -------------------------------------------------------------------------
     - name: Configure Local Automation Hub Collection Remotes
       infra.ah_configuration.collection_remote:
         name: "{{ item.name }}"
@@ -84,9 +68,6 @@
         validate_certs: false
       loop: "{{ ah_collection_remotes | default([]) }}"
 
-    # -------------------------------------------------------------------------
-    # 3. Provision AAP Controller Resources
-    # -------------------------------------------------------------------------
     - name: Provision Controller Resources
       environment:
         CONTROLLER_HOST: "{{ aap_url }}"
