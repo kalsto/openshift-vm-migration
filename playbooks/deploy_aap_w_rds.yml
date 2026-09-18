@@ -37,6 +37,24 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
+    # Discover Target Worker Node for Single-Node RWO Storage Co-location
+    # -------------------------------------------------------------------------
+    - name: Get list of ready worker nodes
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: v1
+        kind: Node
+        label_selectors:
+          - "node-role.kubernetes.io/worker="
+      register: worker_nodes
+
+    - name: Select primary worker node for Hub co-location
+      ansible.builtin.set_fact:
+        target_hub_node: "{{ hub_node_name | default(worker_nodes.resources[0].metadata.name) }}"
+
+    # -------------------------------------------------------------------------
     # Namespace & Certificate Secrets Provisioning
     # -------------------------------------------------------------------------
     - name: Ensure AAP Namespace exists
@@ -152,7 +170,7 @@
       delay: 10
 
     # -------------------------------------------------------------------------
-    # AAP Instance Deployment
+    # AAP Instance Deployment (Pure Declarative Spec)
     # -------------------------------------------------------------------------
     - name: Deploy Ansible Automation Platform Instance
       kubernetes.core.k8s:
@@ -186,22 +204,18 @@
               file_storage_access_mode: ReadWriteOnce
               file_storage_storage_class: "{{ storage_class }}"
               redis_storage_class: "{{ storage_class }}"
-              affinity:
-                podAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    - labelSelector:
-                        matchExpressions:
-                          - key: app.kubernetes.io/part-of
-                            operator: In
-                            values:
-                              - automationhub
-                      topologyKey: kubernetes.io/hostname
               worker:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
               content:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
               api:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
 
             eda:
               disabled: true
@@ -213,7 +227,7 @@
               disabled: true
 
     # -------------------------------------------------------------------------
-    # Post-Deployment Checks & Configuration
+    # Post-Deployment Checks & Licensing
     # -------------------------------------------------------------------------
     - name: Wait for Gateway Admin Secret to be created
       kubernetes.core.k8s_info:
