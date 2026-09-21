@@ -187,7 +187,7 @@
         - "{{ hub_db_secret }}"
       register: db_secrets_check
       until: >
-        db_secrets_check.results | selectattr('resources', 'defined') | map(attribute='resources') | map('length') | min > 0
+        db_secrets_check.resources | default([]) | length > 0
       retries: 30
       delay: 5
 
