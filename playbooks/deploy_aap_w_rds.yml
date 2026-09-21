@@ -170,8 +170,27 @@
       delay: 10
 
     # -------------------------------------------------------------------------
-    # AAP Instance Deployment (Pure Declarative Spec)
+    # Verify ESO Secrets & Deploy AAP Instance
     # -------------------------------------------------------------------------
+    - name: Verify ESO Database Secrets Exist
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: v1
+        kind: Secret
+        name: "{{ item }}"
+        namespace: "{{ aap_namespace }}"
+      loop:
+        - "{{ gateway_db_secret }}"
+        - "{{ controller_db_secret }}"
+        - "{{ hub_db_secret }}"
+      register: db_secrets_check
+      until: >
+        db_secrets_check.results | selectattr('resources', 'defined') | map(attribute='resources') | map('length') | min > 0
+      retries: 30
+      delay: 5
+
     - name: Deploy Ansible Automation Platform Instance
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"

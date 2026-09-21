@@ -12,19 +12,7 @@ openshift_username: "{{ vault_openshift_username }}"
 openshift_password: "{{ vault_openshift_password }}"
 fallback_aap_url: "{{ vault_fallback_aap_url }}"
 rds_host: "{{ vault_rds_host }}"
-
-aws_region: "us-east-2"
-cluster_identifier: "dev-rosa-cluster"
-rds_instance_id: "aap-postgres-db-dev"
-rds_subnet_group_name: "aap-rds-subnet-group-dev"
-rds_sg_name: "aap-rds-sg-dev"
-db_engine_version: "15"
-db_instance_class: "db.m6g.large"
-allocated_storage_gb: 20
-db_master_user: "{{ vault_rds_master_user }}"
-db_master_password: "{{ vault_rds_password }}"
-db_app_user: "aap_user_dev"
-db_app_password: "{{ vault_rds_password }}"
+aws_secret_id: "{{ vault_aws_secret_id }}"
 
 # Secret Names
 gateway_db_secret: "rds-gateway-configuration"
@@ -175,8 +163,8 @@ inventories:
 job_templates:
   - name: "01 - Execute OpenShift VM Migration"
     organization: "{{ aap_organization }}"
-    project: "tt-openshift-virt"
-    inventory: "VM Migration Inventory"
+    project: "{{ projects[0].name }}"
+    inventory: "{{ inventories[0].name }}"
     playbook: "playbooks/migrate_vms.yml"
     credentials:
       - "vCenter Credentials"

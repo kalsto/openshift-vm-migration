@@ -52,6 +52,24 @@
         namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
         wait: false
 
+    - name: Delete Database ExternalSecret Resources
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: external-secrets.io/v1
+        kind: ExternalSecret
+        name: "{{ item }}"
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+        wait: false
+      loop:
+        - "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
+        - "{{ controller_db_secret | default('rds-controller-configuration') }}"
+        - "{{ hub_db_secret | default('rds-hub-configuration') }}"
+        - "{{ eda_db_secret | default('rds-eda-configuration') }}"
+      ignore_errors: true
+
     - name: Delete Operator Subscription
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"
