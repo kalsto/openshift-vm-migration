@@ -55,8 +55,8 @@
                   host: "{{ rds_host }}"
                   port: "5432"
                   database: "{{ item.db }}"
-                  username: '{{ `{{ .username }}` }}'
-                  password: '{{ `{{ .password }}` }}'
+                  username: "{{ '{{' }} .username {{ '}}' }}"
+                  password: "{{ '{{' }} .password {{ '}}' }}"
                   sslmode: "require"
                   type: "unmanaged"
             dataFrom:
@@ -145,14 +145,14 @@
                       - -c
                       - |
                         set -e
-                        echo "Connecting to $PGHOST as$PGUSER..."
+                        echo "Connecting to $PGHOST as $PGUSER..."
 
                         for db in aap_gateway aap_controller aap_hub aap_eda; do
-                          psql -h $PGHOST -U$PGUSER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
-                          psql -h $PGHOST -U$PGUSER -d postgres -c "CREATE DATABASE $db OWNER$PGUSER;"
+                          psql -h $PGHOST -U $PGUSER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+                          psql -h $PGHOST -U $PGUSER -d postgres -c "CREATE DATABASE $db OWNER $PGUSER;"
                         done
 
-                        psql -h $PGHOST -U$PGUSER -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
+                        psql -h $PGHOST -U $PGUSER -d aap_hub -c "CREATE EXTENSION IF NOT EXISTS hstore;"
                         echo "PostgreSQL initialization completed successfully!"
 
     - name: Wait for Database Initialization Job to Succeed
