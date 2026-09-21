@@ -84,7 +84,7 @@
         - "{{ eda_db_secret }}"
       register: eso_secrets
       until: >
-        eso_secrets.results | selectattr('resources', 'defined') | map(attribute='resources') | map('length') | min > 0
+        eso_secrets.resources | default([]) | length > 0
       retries: 30
       delay: 5
 
@@ -166,7 +166,7 @@
         namespace: "{{ aap_namespace }}"
       register: init_job_info
       until: >
-        init_job_info.resources | length > 0 and
+        init_job_info.resources | default([]) | length > 0 and
         (init_job_info.resources[0].status.succeeded | default(0)) > 0
       retries: 30
       delay: 10
