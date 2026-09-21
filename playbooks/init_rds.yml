@@ -148,7 +148,7 @@
                         echo "Connecting to $PGHOST as $PGUSER..."
 
                         for db in aap_gateway aap_controller aap_hub aap_eda; do
-                          psql -h $PGHOST -U $PGUSER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+                          psql -h $PGHOST -U $PGUSER -d postgres -c "DROP DATABASE IF EXISTS $db WITH (FORCE);"
                           psql -h $PGHOST -U $PGUSER -d postgres -c "CREATE DATABASE $db OWNER $PGUSER;"
                         done
 
