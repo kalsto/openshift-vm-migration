@@ -38,7 +38,7 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # Teardown Tasks
+    # Workload Teardown
     # -------------------------------------------------------------------------
     - name: Delete AAP Custom Resource Instance
       kubernetes.core.k8s:
@@ -50,7 +50,24 @@
         kind: AnsibleAutomationPlatform
         name: "{{ aap_instance_name | default('aap') }}"
         namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-        wait: false
+        wait: true
+        wait_timeout: 180
+
+    - name: Delete Lingering PersistentVolumeClaims
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: v1
+        kind: PersistentVolumeClaim
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+        name: "{{ item }}"
+        wait: true
+      loop:
+        - aap-hub-file-storage
+        - aap-hub-redis-storage
+      ignore_errors: true
 
     - name: Delete Database ExternalSecret Resources
       kubernetes.core.k8s:
@@ -62,7 +79,7 @@
         kind: ExternalSecret
         name: "{{ item }}"
         namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-        wait: false
+        wait: true
       loop:
         - "{{ gateway_db_secret | default('rds-gateway-configuration') }}"
         - "{{ controller_db_secret | default('rds-controller-configuration') }}"
@@ -70,6 +87,9 @@
         - "{{ eda_db_secret | default('rds-eda-configuration') }}"
       ignore_errors: true
 
+    # -------------------------------------------------------------------------
+    # OLM & Operator Teardown
+    # -------------------------------------------------------------------------
     - name: Delete Operator Subscription
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"
@@ -80,7 +100,30 @@
         kind: Subscription
         name: ansible-automation-platform
         namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-        wait: false
+        wait: true
+
+    - name: Find and Delete AAP ClusterServiceVersions (CSVs)
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+      register: csvs_to_delete
+
+    - name: Remove AAP CSVs to stop operator pods
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: absent
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
+        wait: true
+      loop: "{{ csvs_to_delete.resources | default([]) }}"
 
     - name: Delete Operator Group
       kubernetes.core.k8s:
@@ -92,15 +135,4 @@
         kind: OperatorGroup
         name: ansible-automation-platform-operator
         namespace: "{{ aap_namespace | default('ansible-automation-platform') }}"
-        wait: false
-
-    - name: Delete AAP Namespace
-      kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token }}"
-        validate_certs: false
-        state: absent
-        api_version: v1
-        kind: Namespace
-        name: "{{ aap_namespace | default('ansible-automation-platform') }}"
-        wait: false
+        wait: true
