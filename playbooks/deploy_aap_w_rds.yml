@@ -229,26 +229,14 @@
                 replicas: 1
                 node_selector:
                   kubernetes.io/hostname: "{{ target_hub_node }}"
-                resource_requirements:
-                  requests:
-                    cpu: 50m
-                    memory: 512Mi
               content:
                 replicas: 1
                 node_selector:
                   kubernetes.io/hostname: "{{ target_hub_node }}"
-                resource_requirements:
-                  requests:
-                    cpu: 50m
-                    memory: 512Mi
               api:
                 replicas: 1
                 node_selector:
                   kubernetes.io/hostname: "{{ target_hub_node }}"
-                resource_requirements:
-                  requests:
-                    cpu: 50m
-                    memory: 512Mi
 
             eda:
               disabled: true
