@@ -191,7 +191,7 @@
       retries: 30
       delay: 5
 
-   - name: Deploy Ansible Automation Platform Instance
+    - name: Deploy Ansible Automation Platform Instance
       kubernetes.core.k8s:
         host: "{{ openshift_host }}"
         api_key: "{{ k8s_token }}"
@@ -204,46 +204,51 @@
             name: "{{ aap_instance_name }}"
             namespace: "{{ aap_namespace }}"
           spec:
-            # Custom FQDN (omitted if custom_hostname is not defined)
             route_host: "{{ custom_hostname | default(omit) }}"
-            
             image_pull_policy: IfNotPresent
             bundle_cacert_secret: "{{ 'aap-custom-ca-secret' if ca_cert_stat.stat.exists else omit }}"
             route_tls_secret: "{{ 'aap-route-tls-secret' if (tls_cert_stats.results | map(attribute='stat.exists') | min) else omit }}"
             
-            # Platform Gateway Database Secret
             database:
               database_secret: "{{ gateway_db_secret }}"
 
-            # Controller Database Secret
             controller:
               disabled: false
-              replicas: 2
+              replicas: 1
               postgres_configuration_secret: "{{ controller_db_secret }}"
             
-            # Automation Hub Database Secret & ROSA KMS Storage Classes
             hub:
               disabled: false
               postgres_configuration_secret: "{{ hub_db_secret }}"
               file_storage_access_mode: ReadWriteOnce
               file_storage_storage_class: "{{ storage_class }}"
               redis_storage_class: "{{ storage_class }}"
-              affinity:
-                podAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    - labelSelector:
-                        matchExpressions:
-                          - key: app.kubernetes.io/part-of
-                            operator: In
-                            values:
-                              - automationhub
-                      topologyKey: kubernetes.io/hostname
+              web:
+                replicas: 1
               worker:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
+                resource_requirements:
+                  requests:
+                    cpu: 50m
+                    memory: 512Mi
               content:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
+                resource_requirements:
+                  requests:
+                    cpu: 50m
+                    memory: 512Mi
               api:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
+                resource_requirements:
+                  requests:
+                    cpu: 50m
+                    memory: 512Mi
 
             eda:
               disabled: true
