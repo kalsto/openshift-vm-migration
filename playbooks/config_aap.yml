@@ -9,6 +9,16 @@
     - infra.ah_configuration
     - kubernetes.core
 
+  pre_tasks:
+    - name: Dynamically load environment variables if env_target is defined
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
+        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
+      when: env_target is defined
+      ignore_errors: true
+
   tasks:
     # -------------------------------------------------------------------------
     # 1. Fetch Cluster Auth & Target AAP Credentials
@@ -52,7 +62,28 @@
         k8s_token: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     # -------------------------------------------------------------------------
-    # 2. Configure Local Automation Hub Remotes
+    # 2. Dynamically Retrieve Automation Hub API Token for Controller Use
+    # -------------------------------------------------------------------------
+    - name: Obtain Automation Hub API Token via Basic Auth
+      ansible.builtin.uri:
+        url: "{{ aap_url }}/api/galaxy/v3/auth/token/"
+        method: POST
+        user: "admin"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        status_code: [200, 201]
+        validate_certs: false
+      register: ah_token_res
+      until: ah_token_res.status in [200, 201]
+      retries: 5
+      delay: 5
+
+    - name: Set Automation Hub Token Fact
+      ansible.builtin.set_fact:
+        ah_token: "{{ ah_token_res.json.token }}"
+
+    # -------------------------------------------------------------------------
+    # 3. Configure Local Automation Hub Remotes
     # -------------------------------------------------------------------------
     - name: Configure Local Automation Hub Collection Remotes
       infra.ah_configuration.collection_remote:
@@ -68,7 +99,7 @@
       loop: "{{ ah_collection_remotes | default([]) }}"
 
     # -------------------------------------------------------------------------
-    # 3. Provision AAP Controller Resources
+    # 4. Provision AAP Controller Resources
     # -------------------------------------------------------------------------
     - name: Provision Controller Resources
       environment:
@@ -78,10 +109,16 @@
         CONTROLLER_FORCE_BASIC_AUTH: "true"
         CONTROLLER_VERIFY_SSL: "false"
       block:
+        - name: Ensure Organizations Exist in AAP
+          ansible.controller.organization:
+            name: "{{ item.name }}"
+            state: "{{ item.state | default('present') }}"
+          loop: "{{ organizations | default([]) }}"
+
         - name: Create credentials in AAP
           ansible.controller.credential:
             name: "{{ item.name }}"
-            description: "{{ item.description }}"
+            description: "{{ item.description | default(omit) }}"
             organization: "{{ item.organization }}"
             credential_type: "{{ item.credential_type }}"
             inputs: "{{ item.inputs }}"
@@ -98,12 +135,12 @@
         - name: Create projects in AAP
           ansible.controller.project:
             name: "{{ item.name }}"
-            description: "{{ item.description }}"
+            description: "{{ item.description | default(omit) }}"
             organization: "{{ item.organization }}"
             scm_type: "{{ item.scm_type }}"
             scm_url: "{{ item.scm_url }}"
-            scm_credential: "{{ item.scm_credential }}"
-            scm_branch: "{{ item.scm_branch }}"
+            scm_credential: "{{ item.scm_credential | default(omit) }}"
+            scm_branch: "{{ item.scm_branch | default(omit) }}"
             scm_update_on_launch: "{{ item.scm_update_on_launch | default(false) }}"
             state: "{{ item.state | default('present') }}"
           loop: "{{ projects | default([]) }}"
@@ -117,7 +154,7 @@
         - name: Create Inventory Containers in AAP
           ansible.controller.inventory:
             name: "{{ item.name }}"
-            description: "{{ item.description }}"
+            description: "{{ item.description | default(omit) }}"
             organization: "{{ item.organization }}"
             state: "{{ item.state | default('present') }}"
           loop: "{{ inventories | default([]) }}"

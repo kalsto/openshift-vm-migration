@@ -140,7 +140,7 @@ projects:
     scm_type: "git"
     scm_url: "{{ vault_github_scm_url }}"
     scm_credential: "GitHub Deploy Key Credential"
-    scm_branch: "dev"
+    scm_branch: "main"
     scm_update_on_launch: false
     state: "present"
 
