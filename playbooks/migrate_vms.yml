@@ -23,6 +23,7 @@
         validate_certs: false
       register: k8s_auth_results
       when: openshift_user is defined and openshift_user | length > 0
+      check_mode: false
 
     - name: Set dynamic OpenShift API Key fact
       ansible.builtin.set_fact:
@@ -31,6 +32,7 @@
         - k8s_auth_results is defined
         - k8s_auth_results.openshift_auth is defined
         - k8s_auth_results.openshift_auth.api_key is defined
+      check_mode: false
 
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
