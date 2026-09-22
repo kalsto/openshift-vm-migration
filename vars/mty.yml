@@ -1,7 +1,13 @@
+# ==============================================================================
+# MTV Migration Configuration for MTY
+# File: vars/mty.yml
+# ==============================================================================
+
 # OpenShift Target Cluster Authentication
 openshift_server: "{{ vault_target_openshift_host }}"
-openshift_user: "{{ vault_target_openshift_username }}"
-openshift_password: "{{ vault_target_openshift_password }}"
+openshift_user: "{{ vault_target_openshift_username | default(omit) }}"
+openshift_password: "{{ vault_target_openshift_password | default(omit) }}"
+openshift_api_key: "{{ vault_target_openshift_token | default(omit) }}"
 openshift_validate_certs: false
 
 # Warm Migration Flag
@@ -16,7 +22,7 @@ migration_plan_name: "vm-migration-plan"
 
 # Role Provider Validation Flags
 provider: "vsphere"
-mtv_management_source_target: "chidebmockvc01.int.tt.local"
+mtv_management_source_target: "{{ vault_vcenter_host }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: false
@@ -45,7 +51,7 @@ mtv_management_secrets: *mtv_secrets
 
 # VMware Provider Definitions
 mtv_management_providers: &mtv_management_providers
-  - name: "chidebmockvc01.int.tt.local"
+  - name: "{{ vault_vcenter_host }}"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
     url: "{{ vsphere_url }}"
@@ -59,7 +65,7 @@ mtv_management_providers: &mtv_management_providers
 mtv_network_maps: &mtv_network_maps
   - name: "test-network-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "chidebmockvc01.int.tt.local"
+    source_provider: "{{ vault_vcenter_host }}"
     destination_provider: "host"
     map:
       - source:
@@ -70,9 +76,9 @@ mtv_management_network_maps: *mtv_network_maps
 
 # Storage Mappings
 mtv_storage_maps: &mtv_storage_maps
-  - name: "chidebmockvc01-int-tt-local-host"
+  - name: "test-storage-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "chidebmockvc01.int.tt.local"
+    source_provider: "{{ vault_vcenter_host }}"
     destination_provider: "host"
     map:
       - source:
@@ -85,10 +91,10 @@ mtv_management_storage_maps: *mtv_storage_maps
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "chidebmockvc01.int.tt.local"
+    source_provider: "{{ vault_vcenter_host }}"
     destination_provider: "host"
     network_map: "test-network-map"
-    storage_map: "chidebmockvc01-int-tt-local-host"
+    storage_map: "test-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
@@ -99,10 +105,10 @@ mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
-  source: "chidebmockvc01.int.tt.local"
+  source: "{{ vault_vcenter_host }}"
   destination: "host"
   network_map: "test-network-map"
-  storage_map: "chidebmockvc01-int-tt-local-host"
+  storage_map: "test-storage-map"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
