@@ -9,7 +9,7 @@
     - "../vars/vault.yml"
     - "../vars/mty.yml"
 
-  # Play-level environment variables inherited by all tasks and roles
+  # Play-level environment variables inherited lazily by tasks and included roles
   environment:
     K8S_AUTH_HOST: "{{ openshift_server }}"
     K8S_AUTH_API_KEY: "{{ openshift_api_key | default(omit) }}"
@@ -26,7 +26,7 @@
 
     - name: Set dynamic OpenShift API Key fact
       ansible.builtin.set_fact:
-        openshift_api_key: "{{ k8s_auth_results.openshift_auth.api_key }}"
+        openshift_api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
 
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
