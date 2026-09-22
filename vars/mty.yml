@@ -20,7 +20,7 @@ target_namespace: "local-cluster"
 migration_plan_name: "vm-migration-plan"
 
 # Role Provider Validation Flags
-provider: "vsphere"
+provider: "vmware"
 mtv_management_source_target: "{{ vault_vcenter_host }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
@@ -49,16 +49,25 @@ mtv_secrets: &mtv_secrets
 mtv_management_secrets: *mtv_secrets
 
 # VMware Provider Definitions & Migration Targets
+mtv_management_vmware_providers: &mtv_management_vmware_providers
+  - name: "{{ vault_vcenter_host }}"
+    namespace: "{{ mtv_namespace }}"
+    type: "vmware"
+    url: "{{ vsphere_url }}"
+    secret: "vsphere-credentials"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+
 mtv_management_migration_targets: &mtv_management_migration_targets
   - name: "{{ vault_vcenter_host }}"
     namespace: "{{ mtv_namespace }}"
-    type: "vsphere"
+    type: "vmware"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
     vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
+
 mtv_management_providers: *mtv_management_migration_targets
 
 # Network Mappings
