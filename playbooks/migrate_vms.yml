@@ -11,7 +11,7 @@
 
   pre_tasks:
     - name: Authenticate against OpenShift OAuth to obtain fresh API token
-      kubernetes.core.k8s_auth:
+      community.okd.openshift_auth:
         host: "{{ openshift_server }}"
         username: "{{ openshift_user }}"
         password: "{{ openshift_password }}"
@@ -20,7 +20,7 @@
 
     - name: Set dynamic OpenShift API Key fact
       ansible.builtin.set_fact:
-        openshift_api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        openshift_api_key: "{{ k8s_auth_results.openshift_auth.api_key }}"
 
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
