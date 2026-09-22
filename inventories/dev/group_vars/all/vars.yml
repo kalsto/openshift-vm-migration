@@ -51,7 +51,7 @@ credentials:
       vault_password: "{{ vault_ansible_password }}"
     state: "present"
 
-- name: "Local Automation Hub Published"
+  - name: "Local Automation Hub Published"
     description: "Internal Automation Hub Published Content"
     organization: "{{ aap_organization }}"
     credential_type: "Ansible Galaxy/Automation Hub API Token"
