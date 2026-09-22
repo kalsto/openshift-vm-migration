@@ -3,7 +3,7 @@
 # File: vars/mty.yml
 # ==============================================================================
 
-# OpenShift Cluster Authentication (ROSA Cluster)
+# OpenShift Target Cluster Authentication
 openshift_server: "{{ vault_openshift_host }}"
 openshift_user: "{{ vault_openshift_username }}"
 openshift_password: "{{ vault_openshift_password }}"
@@ -48,8 +48,8 @@ mtv_secrets: &mtv_secrets
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
-# VMware Provider Definitions
-mtv_management_providers: &mtv_management_providers
+# VMware Provider Definitions & Migration Targets
+mtv_management_migration_targets: &mtv_management_migration_targets
   - name: "{{ vault_vcenter_host }}"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
@@ -59,6 +59,7 @@ mtv_management_providers: &mtv_management_providers
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
+mtv_management_providers: *mtv_management_migration_targets
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
