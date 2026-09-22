@@ -72,7 +72,7 @@
         definition:
           apiVersion: v1
           kind: Namespace
-metadata:
+          metadata:
             name: "{{ target_namespace }}"
 
     - name: Ensure Global ForkliftController Uses VDDK Image
