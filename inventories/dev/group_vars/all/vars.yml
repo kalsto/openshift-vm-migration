@@ -51,13 +51,13 @@ credentials:
       vault_password: "{{ vault_ansible_password }}"
     state: "present"
 
-  - name: "Local Automation Hub Published"
+- name: "Local Automation Hub Published"
     description: "Internal Automation Hub Published Content"
     organization: "{{ aap_organization }}"
     credential_type: "Ansible Galaxy/Automation Hub API Token"
     inputs:
       url: "{{ vault_local_published_url }}"
-      token: "{{ vault_local_hub_token }}"
+      token: "{{ ah_token }}"
     state: "present"
 
   - name: "Local Automation Hub Community"
@@ -66,7 +66,7 @@ credentials:
     credential_type: "Ansible Galaxy/Automation Hub API Token"
     inputs:
       url: "{{ vault_local_community_url }}"
-      token: "{{ vault_local_hub_token }}"
+      token: "{{ ah_token }}"
     state: "present"
 
   - name: "Local Automation Hub Certified"
@@ -75,7 +75,7 @@ credentials:
     credential_type: "Ansible Galaxy/Automation Hub API Token"
     inputs:
       url: "{{ vault_local_certified_url }}"
-      token: "{{ vault_local_hub_token }}"
+      token: "{{ ah_token }}"
     state: "present"
 
   - name: "Red Hat Automation Hub Credential"
