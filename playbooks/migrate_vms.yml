@@ -9,6 +9,12 @@
     - "../vars/vault.yml"
     - "../vars/mty.yml"
 
+  # Play-level environment variables inherited by all tasks and roles
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key | default(omit) }}"
+    K8S_AUTH_VERIFY_SSL: "false"
+
   pre_tasks:
     - name: Authenticate against OpenShift OAuth to obtain fresh API token
       community.okd.openshift_auth:
@@ -86,15 +92,7 @@
     - name: Provision Secrets, Providers, Maps, and Migration Plans
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_management
-      environment:
-        K8S_AUTH_HOST: "{{ openshift_server }}"
-        K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-        K8S_AUTH_VERIFY_SSL: "false"
 
     - name: Trigger Migration Executions and Monitor Progress
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_migrate
-      environment:
-        K8S_AUTH_HOST: "{{ openshift_server }}"
-        K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-        K8S_AUTH_VERIFY_SSL: "false"
