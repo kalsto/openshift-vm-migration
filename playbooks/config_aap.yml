@@ -9,14 +9,6 @@
     - infra.ah_configuration
     - kubernetes.core
 
-  pre_tasks:
-    - name: Automatically load variable files from active inventory directory
-      ansible.builtin.include_vars:
-        dir: "{{ inventory_dir }}"
-        extensions: ['yml', 'yaml']
-        ignore_files: ['hosts', 'hosts.yml', 'hosts.yaml']
-      ignore_errors: true
-
   tasks:
     # -------------------------------------------------------------------------
     # 1. Fetch Cluster Auth & Target AAP Credentials
