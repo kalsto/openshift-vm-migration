@@ -2,6 +2,7 @@
 collections:
   # OpenShift & AAP Automation
   - name: kubernetes.core
+  - name: community.okd
   - name: ansible.controller
     version: ">=4.5.0"
 
