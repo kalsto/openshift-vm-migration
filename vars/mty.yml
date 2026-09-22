@@ -51,6 +51,7 @@ mtv_management_secrets: *mtv_secrets
 # VMware Provider Definitions & Migration Targets
 mtv_management_vmware_providers: &mtv_management_vmware_providers
   - name: "{{ vault_vcenter_host }}"
+    host: "{{ vault_vcenter_host }}"               # Required by the role to pass assertion
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -59,6 +60,7 @@ mtv_management_vmware_providers: &mtv_management_vmware_providers
 
 mtv_management_migration_targets: &mtv_management_migration_targets
   - name: "{{ vault_vcenter_host }}"
+    host: "{{ vault_vcenter_host }}"               # Required by the role to pass assertion
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
