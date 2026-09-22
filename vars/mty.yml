@@ -1,11 +1,7 @@
-# ==============================================================================
-# MTV Migration Configuration for MTY
-# File: vars/mty.yml
-# ==============================================================================
-
 # OpenShift Target Cluster Authentication
 openshift_server: "{{ vault_target_openshift_host }}"
-openshift_api_key: "{{ vault_target_openshift_token }}"
+openshift_user: "{{ vault_target_openshift_username }}"
+openshift_password: "{{ vault_target_openshift_password }}"
 openshift_validate_certs: false
 
 # Warm Migration Flag
