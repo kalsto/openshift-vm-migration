@@ -1,0 +1,114 @@
+# ==============================================================================
+# MTV Migration Configuration for MTY
+# File: vars/mty.yml
+# ==============================================================================
+
+# OpenShift Target Cluster Authentication
+openshift_server: "{{ vault_target_openshift_host }}"
+openshift_api_key: "{{ vault_target_openshift_token }}"
+openshift_validate_certs: false
+
+# Warm Migration Flag
+is_warm: "{{ warm_migration | default(false) | bool }}"
+
+# MTV and Target Namespaces
+mtv_namespace: "openshift-mtv"
+target_namespace: "local-cluster"
+
+# Plan Name
+migration_plan_name: "vm-migration-plan"
+
+# Role Provider Validation Flags
+provider: "vsphere"
+mtv_management_source_target: "chidebmockvc01.int.tt.local"
+mtv_management_destination_target: "host"
+mtv_management_provider_namespace: "{{ mtv_namespace }}"
+mtv_management_map_storage: false
+mtv_management_map_networks: true
+
+# vSphere Infrastructure Details
+vsphere_url: "{{ vault_vsphere_url }}"
+vsphere_user: "{{ vault_vcenter_username }}"
+vsphere_password: "{{ vault_vcenter_password }}"
+vsphere_insecure_skip_verify: true
+
+# Port Group & Storage Class Definitions
+vsphere_port_group: "segment-migrating-to-ocpvirt"
+vsphere_datastore: "workloadshare"
+target_storage_class: "ocs-external-storagecluster-ceph-rbd"
+
+# Secret Definitions for MTV Providers
+mtv_secrets: &mtv_secrets
+  - name: "vsphere-credentials"
+    namespace: "{{ mtv_namespace }}"
+    user: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
+    insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
+    url: "{{ vsphere_url }}"
+mtv_management_secrets: *mtv_secrets
+
+# VMware Provider Definitions
+mtv_management_providers: &mtv_management_providers
+  - name: "chidebmockvc01.int.tt.local"
+    namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
+    url: "{{ vsphere_url }}"
+    secret: "vsphere-credentials"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
+
+# Network Mappings
+mtv_network_maps: &mtv_network_maps
+  - name: "test-network-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "chidebmockvc01.int.tt.local"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_port_group }}"
+        destination:
+          type: "pod"
+mtv_management_network_maps: *mtv_network_maps
+
+# Storage Mappings
+mtv_storage_maps: &mtv_storage_maps
+  - name: "chidebmockvc01-int-tt-local-host"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "chidebmockvc01.int.tt.local"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_datastore }}"
+        destination:
+          storageClass: "{{ target_storage_class }}"
+mtv_management_storage_maps: *mtv_storage_maps
+
+# Migration Plans
+mtv_plans: &mtv_plans
+  - name: "{{ migration_plan_name }}"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "chidebmockvc01.int.tt.local"
+    destination_provider: "host"
+    network_map: "test-network-map"
+    storage_map: "chidebmockvc01-int-tt-local-host"
+    target_namespace: "{{ target_namespace }}"
+    vms: "{{ source_vms }}"
+    warm: "{{ is_warm }}"
+mtv_management_plans: *mtv_plans
+
+# Migration Executions Request
+mtv_migrate_migration_request:
+  plan_name: "{{ migration_plan_name }}"
+  mtv_namespace: "{{ mtv_namespace }}"
+  target_namespace: "{{ target_namespace }}"
+  source: "chidebmockvc01.int.tt.local"
+  destination: "host"
+  network_map: "test-network-map"
+  storage_map: "chidebmockvc01-int-tt-local-host"
+  start_migration: true
+  verify_plans_ready: true
+  verify_migrations_complete: true
+  vms: "{{ source_vms }}"
+  warm: "{{ is_warm }}"

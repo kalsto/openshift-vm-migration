@@ -5,6 +5,16 @@
   gather_facts: false
   run_once: true
 
+  vars_files:
+    - "../vars/vault.yml"
+    - "../vars/mty.yml"
+
+  # Injects connection details into every task and role run
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_VERIFY_SSL: "false"
+
   pre_tasks:
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
@@ -30,25 +40,20 @@
     - name: Power off source VMs in vSphere when performing cold migration
       community.vmware.vmware_guest:
         hostname: "{{ vsphere_url | regex_replace('^https?://', '') | regex_replace('/.*$', '') }}"
-        username: "{{ vcenter_username }}"
-        password: "{{ vcenter_password }}"
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_password }}"
         validate_certs: false
         name: "{{ item.name }}"
         state: poweredoff
       loop: "{{ source_vms }}"
-      when: not (is_warm | default(false) | bool)
+      when: not is_warm
       delegate_to: localhost
-
-  environment:
-    K8S_AUTH_HOST: "{{ openshift_host }}"
-    K8S_AUTH_API_KEY: "{{ k8s_token | default(openshift_password) }}"
-    K8S_AUTH_VERIFY_SSL: "false"
 
   tasks:
     - name: Ensure Target Namespace Exists
       kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token | default(omit) }}"
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
         validate_certs: false
         state: present
         definition:
@@ -59,8 +64,8 @@
 
     - name: Ensure Global ForkliftController Uses VDDK Image
       kubernetes.core.k8s:
-        host: "{{ openshift_host }}"
-        api_key: "{{ k8s_token | default(omit) }}"
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
         validate_certs: false
         state: present
         definition:
