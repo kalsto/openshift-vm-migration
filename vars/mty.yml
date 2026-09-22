@@ -3,10 +3,10 @@
 # File: vars/mty.yml
 # ==============================================================================
 
-# OpenShift Target Cluster Authentication
-openshift_server: "{{ vault_target_openshift_host }}"
-openshift_user: "{{ vault_target_openshift_username }}"
-openshift_password: "{{ vault_target_openshift_password }}"
+# OpenShift Cluster Authentication (ROSA Cluster)
+openshift_server: "{{ vault_openshift_host }}"
+openshift_user: "{{ vault_openshift_username }}"
+openshift_password: "{{ vault_openshift_password }}"
 openshift_validate_certs: false
 
 # Warm Migration Flag
@@ -36,7 +36,7 @@ vsphere_insecure_skip_verify: true
 # Port Group & Storage Class Definitions
 vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
-target_storage_class: "ocs-external-storagecluster-ceph-rbd"
+target_storage_class: "gp3-csi"
 
 # Secret Definitions for MTV Providers
 mtv_secrets: &mtv_secrets
