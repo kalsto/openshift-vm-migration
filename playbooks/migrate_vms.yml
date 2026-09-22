@@ -11,7 +11,7 @@
 
   environment:
     K8S_AUTH_HOST: "{{ openshift_server }}"
-    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key | default('') }}"
     K8S_AUTH_VERIFY_SSL: "false"
 
   pre_tasks:
@@ -22,7 +22,7 @@
         password: "{{ openshift_password }}"
         validate_certs: false
       register: k8s_auth_results
-      when: openshift_api_key is not defined or openshift_api_key | length == 0
+      when: openshift_user is defined and openshift_user | length > 0
 
     - name: Set dynamic OpenShift API Key fact
       ansible.builtin.set_fact:
