@@ -10,13 +10,11 @@
     - kubernetes.core
 
   pre_tasks:
-    - name: Dynamically load environment variables if env_target is defined
+    - name: Automatically load variable files from active inventory directory
       ansible.builtin.include_vars:
-        file: "{{ item }}"
-      loop:
-        - "{{ playbook_dir }}/../vars/{{ env_target }}_config.yml"
-        - "{{ playbook_dir }}/../vars/vault_{{ env_target }}.yml"
-      when: env_target is defined
+        dir: "{{ inventory_dir }}"
+        extensions: ['yml', 'yaml']
+        ignore_files: ['hosts', 'hosts.yml', 'hosts.yaml']
       ignore_errors: true
 
   tasks:
@@ -83,7 +81,7 @@
         ah_token: "{{ ah_token_res.json.token }}"
 
     # -------------------------------------------------------------------------
-    # 3. Configure Local Automation Hub Remotes
+    # 3. Configure & Conditionally Sync Local Automation Hub Remotes
     # -------------------------------------------------------------------------
     - name: Configure Local Automation Hub Collection Remotes
       infra.ah_configuration.collection_remote:
@@ -97,6 +95,32 @@
         ah_password: "{{ aap_admin_password }}"
         validate_certs: false
       loop: "{{ ah_collection_remotes | default([]) }}"
+
+    - name: Inspect Automation Hub Remote Sync History
+      ansible.builtin.uri:
+        url: "{{ aap_url }}/api/galaxy/pulp/api/v3/remotes/ansible/collection/?name={{ item.name }}"
+        method: GET
+        user: "admin"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        status_code: [200]
+        validate_certs: false
+      loop: "{{ ah_collection_remotes | default([]) }}"
+      register: ah_remotes_info
+
+    - name: Trigger Repository Sync ONLY if Never Synced Before
+      infra.ah_configuration.collection_repository_sync:
+        name: "{{ item.item.name }}"
+        ah_host: "{{ aap_url }}"
+        ah_username: "admin"
+        ah_password: "{{ aap_admin_password }}"
+        validate_certs: false
+        wait: true
+      loop: "{{ ah_remotes_info.results | default([]) }}"
+      when:
+        - item.json.results is defined
+        - item.json.results | length > 0
+        - item.json.results[0].last_sync_task is none
 
     # -------------------------------------------------------------------------
     # 4. Provision AAP Controller Resources
