@@ -45,7 +45,8 @@ mtv_secrets: &mtv_secrets
     user: "{{ vsphere_user }}"
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
-    insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
+    insecureSkipVerify: "true"
+    insecureSkipTlsVerify: true
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
@@ -55,6 +56,8 @@ mtv_management_vmware_providers: &mtv_management_vmware_providers
     host: "{{ vault_vcenter_host }}"
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
+    insecureSkipVerify: true
+    insecureSkipTlsVerify: true             # Required by role certificate conditional
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -66,6 +69,8 @@ mtv_management_migration_targets: &mtv_management_migration_targets
     host: "{{ vault_vcenter_host }}"
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
+    insecureSkipVerify: true
+    insecureSkipTlsVerify: true             # Required by role certificate conditional
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
