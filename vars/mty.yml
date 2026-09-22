@@ -43,6 +43,7 @@ mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
     user: "{{ vsphere_user }}"
+    username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
     url: "{{ vsphere_url }}"
@@ -51,7 +52,9 @@ mtv_management_secrets: *mtv_secrets
 # VMware Provider Definitions & Migration Targets
 mtv_management_vmware_providers: &mtv_management_vmware_providers
   - name: "{{ vault_vcenter_host }}"
-    host: "{{ vault_vcenter_host }}"               # Required by the role to pass assertion
+    host: "{{ vault_vcenter_host }}"
+    username: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -60,7 +63,9 @@ mtv_management_vmware_providers: &mtv_management_vmware_providers
 
 mtv_management_migration_targets: &mtv_management_migration_targets
   - name: "{{ vault_vcenter_host }}"
-    host: "{{ vault_vcenter_host }}"               # Required by the role to pass assertion
+    host: "{{ vault_vcenter_host }}"
+    username: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
