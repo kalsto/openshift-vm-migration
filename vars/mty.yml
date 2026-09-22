@@ -20,12 +20,12 @@ target_namespace: "local-cluster"
 migration_plan_name: "vm-migration-plan"
 
 # Role Provider Validation Flags
-provider: "vmware"
+provider: "vsphere"                             # Required for map queries ('vsphere' in provider)
 mtv_management_source_target: "{{ vault_vcenter_host }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: false
-mtv_management_map_networks: true
+mtv_management_map_networks: false              # Set to false to use explicit network maps below
 
 # vSphere Infrastructure Details
 vsphere_url: "{{ vault_vsphere_url }}"
@@ -57,7 +57,7 @@ mtv_management_vmware_providers: &mtv_management_vmware_providers
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: true
-    insecureSkipTlsVerify: true             # Required by role certificate conditional
+    insecureSkipTlsVerify: true
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
@@ -70,7 +70,7 @@ mtv_management_migration_targets: &mtv_management_migration_targets
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: true
-    insecureSkipTlsVerify: true             # Required by role certificate conditional
+    insecureSkipTlsVerify: true
     namespace: "{{ mtv_namespace }}"
     type: "vmware"
     url: "{{ vsphere_url }}"
