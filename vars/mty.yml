@@ -3,16 +3,16 @@
 # File: vars/mty.yml
 # ==============================================================================
 
-# OpenShift Target Cluster Authentication
-openshift_server: "{{ vault_openshift_host }}"
-openshift_user: "{{ vault_openshift_username }}"
-openshift_password: "{{ vault_openshift_password }}"
+# OpenShift Target Cluster Authentication (Targets m-ty cluster at 10.201.126.100)
+openshift_server: "{{ vault_target_openshift_host }}"
+openshift_user: "{{ vault_target_openshift_username }}"
+openshift_password: "{{ vault_target_openshift_password }}"
 openshift_validate_certs: false
 
 # Warm Migration Flag (defaults to false/cold; override with warm_migration: true in AAP Extra Vars)
 is_warm: "{{ warm_migration | default(false) | bool }}"
 
-# MTV and Target Namespaces
+# MTV and Target Namespaces on Target Cluster
 mtv_namespace: "openshift-mtv"
 target_namespace: "local-cluster"
 
@@ -21,7 +21,7 @@ migration_plan_name: "vm-migration-plan"
 
 # Dual Endpoint Mapping:
 # - vsphere_direct_host: IP used by AAP runner for direct vCenter API calls (VM power-off)
-# - mtv_provider_cr_name: FQDN matching the connected Provider CR in OpenShift
+# - mtv_provider_cr_name: FQDN matching the connected Provider CR on the target cluster
 vsphere_direct_host: "{{ vault_vcenter_host }}"
 mtv_provider_cr_name: "{{ vault_vcenter_fqdn }}"
 
@@ -39,10 +39,10 @@ vsphere_user: "{{ vault_vcenter_username }}"
 vsphere_password: "{{ vault_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
-# Port Group & Storage Class Definitions
+# Port Group & Storage Class Definitions on Target Cluster
 vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
-target_storage_class: "gp3-csi"
+target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
 # Secret Definitions for MTV Providers
 mtv_secrets: &mtv_secrets

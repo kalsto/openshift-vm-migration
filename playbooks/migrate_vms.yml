@@ -15,7 +15,7 @@
     K8S_AUTH_VERIFY_SSL: "false"
 
   pre_tasks:
-    - name: Authenticate against OpenShift OAuth to obtain fresh API token
+    - name: Authenticate against Target OpenShift OAuth to obtain fresh API token
       community.okd.openshift_auth:
         host: "{{ openshift_server }}"
         username: "{{ openshift_user }}"
@@ -63,7 +63,7 @@
       delegate_to: localhost
 
   tasks:
-    - name: Ensure Target Namespace Exists
+    - name: Ensure Target Namespace Exists on Target Cluster
       kubernetes.core.k8s:
         host: "{{ openshift_server }}"
         api_key: "{{ openshift_api_key }}"
