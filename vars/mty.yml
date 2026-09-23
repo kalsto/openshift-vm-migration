@@ -62,7 +62,7 @@ mtv_management_providers: &mtv_management_providers
     type: "vsphere"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
-    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:8.0.3"
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
