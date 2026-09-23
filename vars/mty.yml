@@ -15,7 +15,7 @@ is_warm: "{{ warm_migration | default(false) | bool }}"
 
 # MTV and Target Namespaces on Target Cluster
 mtv_namespace: "openshift-mtv"
-target_namespace: "local-cluster"
+target_namespace: "openshift-mtv"
 
 # Plan Name
 migration_plan_name: "vm-migration-plan"
