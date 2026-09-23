@@ -9,7 +9,7 @@ openshift_user: "{{ vault_openshift_username }}"
 openshift_password: "{{ vault_openshift_password }}"
 openshift_validate_certs: false
 
-# Warm Migration Flag
+# Warm Migration Flag (defaults to false/cold; override with warm_migration: true in AAP Extra Vars)
 is_warm: "{{ warm_migration | default(false) | bool }}"
 
 # MTV and Target Namespaces
@@ -19,7 +19,9 @@ target_namespace: "local-cluster"
 # Plan Name
 migration_plan_name: "vm-migration-plan"
 
-# Pre-existing Provider Details on ROSA Cluster
+# Dual Endpoint Mapping:
+# - vsphere_direct_host: IP used by AAP runner for direct vCenter API calls (VM power-off)
+# - mtv_provider_cr_name: FQDN matching the connected Provider CR in OpenShift
 vsphere_direct_host: "{{ vault_vcenter_host }}"
 mtv_provider_cr_name: "{{ vault_vcenter_fqdn }}"
 
@@ -29,7 +31,7 @@ mtv_management_source_target: "{{ mtv_provider_cr_name }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: false
-mtv_management_map_networks: false
+mtv_management_map_networks: true
 
 # vSphere Infrastructure Details
 vsphere_url: "{{ vault_vsphere_url }}"
@@ -42,10 +44,27 @@ vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
 target_storage_class: "gp3-csi"
 
-# Skip Provider & Secret Management (Use existing connected cluster provider)
-mtv_management_secrets: []
-mtv_management_vmware_providers: []
-mtv_management_providers: []
+# Secret Definitions for MTV Providers
+mtv_secrets: &mtv_secrets
+  - name: "vsphere-credentials"
+    namespace: "{{ mtv_namespace }}"
+    user: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
+    insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
+    url: "{{ vsphere_url }}"
+mtv_management_secrets: *mtv_secrets
+
+# VMware Provider Definitions (Uses type: vsphere to match working configuration)
+mtv_management_providers: &mtv_management_providers
+  - name: "{{ mtv_provider_cr_name }}"
+    namespace: "{{ mtv_namespace }}"
+    type: "vsphere"
+    url: "{{ vsphere_url }}"
+    secret: "vsphere-credentials"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
@@ -62,7 +81,7 @@ mtv_management_network_maps: *mtv_network_maps
 
 # Storage Mappings
 mtv_storage_maps: &mtv_storage_maps
-  - name: "test-storage-map"
+  - name: "chidebmockvc01-int-tt-local-host"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
@@ -80,7 +99,7 @@ mtv_plans: &mtv_plans
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     network_map: "test-network-map"
-    storage_map: "test-storage-map"
+    storage_map: "chidebmockvc01-int-tt-local-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
@@ -94,7 +113,7 @@ mtv_migrate_migration_request:
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
   network_map: "test-network-map"
-  storage_map: "test-storage-map"
+  storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
