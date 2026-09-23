@@ -19,9 +19,7 @@ target_namespace: "local-cluster"
 # Plan Name
 migration_plan_name: "vm-migration-plan"
 
-# Dual-Endpoint Strategy:
-# - vsphere_direct_host: IP used by AAP runner to talk directly to vCenter API
-# - mtv_provider_cr_name: FQDN of the existing, connected Provider CR inside OpenShift
+# Pre-existing Provider Details on ROSA Cluster
 vsphere_direct_host: "{{ vault_vcenter_host }}"
 mtv_provider_cr_name: "{{ vault_vcenter_fqdn }}"
 
@@ -44,49 +42,10 @@ vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
 target_storage_class: "gp3-csi"
 
-# Secret Definitions for MTV Providers
-mtv_secrets: &mtv_secrets
-  - name: "vsphere-credentials"
-    namespace: "{{ mtv_namespace }}"
-    user: "{{ vsphere_user }}"
-    username: "{{ vsphere_user }}"
-    password: "{{ vsphere_password }}"
-    insecureSkipVerify: "true"
-    insecureSkipTlsVerify: true
-    url: "{{ vsphere_url }}"
-mtv_management_secrets: *mtv_secrets
-
-# VMware Provider Definitions & Migration Targets
-mtv_management_vmware_providers: &mtv_management_vmware_providers
-  - name: "{{ mtv_provider_cr_name }}"
-    host: "{{ mtv_provider_cr_name }}"
-    username: "{{ vsphere_user }}"
-    password: "{{ vsphere_password }}"
-    insecureSkipVerify: true
-    insecureSkipTlsVerify: true
-    namespace: "{{ mtv_namespace }}"
-    type: "vmware"
-    url: "{{ vsphere_url }}"
-    secret: "vsphere-credentials"
-    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
-
-mtv_management_migration_targets: &mtv_management_migration_targets
-  - name: "{{ mtv_provider_cr_name }}"
-    host: "{{ mtv_provider_cr_name }}"
-    username: "{{ vsphere_user }}"
-    password: "{{ vsphere_password }}"
-    insecureSkipVerify: true
-    insecureSkipTlsVerify: true
-    namespace: "{{ mtv_namespace }}"
-    type: "vmware"
-    url: "{{ vsphere_url }}"
-    secret: "vsphere-credentials"
-    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
-  - name: "host"
-    namespace: "{{ mtv_namespace }}"
-    type: "openshift"
-
-mtv_management_providers: *mtv_management_migration_targets
+# Skip Provider & Secret Management (Use existing connected cluster provider)
+mtv_management_secrets: []
+mtv_management_vmware_providers: []
+mtv_management_providers: []
 
 # Network Mappings
 mtv_network_maps: &mtv_network_maps
