@@ -52,7 +52,7 @@
 
     - name: Power off source VMs in vSphere when performing cold migration
       community.vmware.vmware_guest:
-        hostname: "{{ vsphere_url | regex_replace('^https?://', '') | regex_replace('/.*$', '') }}"
+        hostname: "{{ vsphere_direct_host }}"
         username: "{{ vsphere_user }}"
         password: "{{ vsphere_password }}"
         validate_certs: false

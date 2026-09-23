@@ -19,13 +19,19 @@ target_namespace: "local-cluster"
 # Plan Name
 migration_plan_name: "vm-migration-plan"
 
+# Dual-Endpoint Strategy:
+# - vsphere_direct_host: IP used by AAP runner to talk directly to vCenter API
+# - mtv_provider_cr_name: FQDN of the existing, connected Provider CR inside OpenShift
+vsphere_direct_host: "{{ vault_vcenter_host }}"
+mtv_provider_cr_name: "{{ vault_vcenter_fqdn }}"
+
 # Role Provider Validation Flags
-provider: "vsphere"                             # Required for map queries ('vsphere' in provider)
-mtv_management_source_target: "{{ vault_vcenter_host }}"
+provider: "vsphere"
+mtv_management_source_target: "{{ mtv_provider_cr_name }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: false
-mtv_management_map_networks: false              # Set to false to use explicit network maps below
+mtv_management_map_networks: false
 
 # vSphere Infrastructure Details
 vsphere_url: "{{ vault_vsphere_url }}"
@@ -52,8 +58,8 @@ mtv_management_secrets: *mtv_secrets
 
 # VMware Provider Definitions & Migration Targets
 mtv_management_vmware_providers: &mtv_management_vmware_providers
-  - name: "{{ vault_vcenter_host }}"
-    host: "{{ vault_vcenter_host }}"
+  - name: "{{ mtv_provider_cr_name }}"
+    host: "{{ mtv_provider_cr_name }}"
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: true
@@ -65,8 +71,8 @@ mtv_management_vmware_providers: &mtv_management_vmware_providers
     vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
 
 mtv_management_migration_targets: &mtv_management_migration_targets
-  - name: "{{ vault_vcenter_host }}"
-    host: "{{ vault_vcenter_host }}"
+  - name: "{{ mtv_provider_cr_name }}"
+    host: "{{ mtv_provider_cr_name }}"
     username: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: true
@@ -86,7 +92,7 @@ mtv_management_providers: *mtv_management_migration_targets
 mtv_network_maps: &mtv_network_maps
   - name: "test-network-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ vault_vcenter_host }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     map:
       - source:
@@ -99,7 +105,7 @@ mtv_management_network_maps: *mtv_network_maps
 mtv_storage_maps: &mtv_storage_maps
   - name: "test-storage-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ vault_vcenter_host }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     map:
       - source:
@@ -112,7 +118,7 @@ mtv_management_storage_maps: *mtv_storage_maps
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ vault_vcenter_host }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     network_map: "test-network-map"
     storage_map: "test-storage-map"
@@ -126,7 +132,7 @@ mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
-  source: "{{ vault_vcenter_host }}"
+  source: "{{ mtv_provider_cr_name }}"
   destination: "host"
   network_map: "test-network-map"
   storage_map: "test-storage-map"
