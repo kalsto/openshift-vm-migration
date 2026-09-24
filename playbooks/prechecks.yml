@@ -1,6 +1,6 @@
 ---
 - name: prechecks
-  hosts: localhost
+  hosts: "{{ vms | default('localhost') }}"
   gather_facts: no
 
 #  pre_tasks:
