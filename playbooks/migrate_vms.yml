@@ -10,7 +10,7 @@
     - "../vars/mty.yml"
 
   pre_tasks:
-    - name: Validate host limit is defined and not 'all'
+    - name: Validate that a specific target host limit is defined
       ansible.builtin.assert:
         that:
           - ansible_limit is defined or limit is defined
@@ -57,8 +57,8 @@
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
           - "  Target Limit:       {{ ansible_limit | default(limit) }}"
-          - "  Source vCenter:     {{ selected_vcenter }} ({{ vsphere_direct_host }})"
-          - "  Target OpenShift:   {{ selected_openshift_cluster }} ({{ openshift_server }})"
+          - "  Source vCenter:     {{ selected_vcenter | default('chidebmockvc01') }} ({{ vsphere_direct_host }})"
+          - "  Target OpenShift:   {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
           - "  Target Namespace:   {{ target_namespace }}"
           - "  Warm Migration:     {{ is_warm }}"
           - "============================================================"
@@ -103,12 +103,13 @@
           spec:
             vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
 
-    - name: Provision Secrets, Providers, Maps, and Migration Plans
-      ansible.builtin.include_role:
-        name: infra.openshift_virtualization_migration.mtv_management
+    - name: Execute Migration Roles with Dynamic K8s Authentication
       environment: "{{ ansible_env_k8s_auth }}"
+      block:
+        - name: Provision Secrets, Providers, Maps, and Migration Plans
+          ansible.builtin.include_role:
+            name: infra.openshift_virtualization_migration.mtv_management
 
-    - name: Trigger Migration Executions and Monitor Progress
-      ansible.builtin.include_role:
-        name: infra.openshift_virtualization_migration.mtv_migrate
-      environment: "{{ ansible_env_k8s_auth }}"
+        - name: Trigger Migration Executions and Monitor Progress
+          ansible.builtin.include_role:
+            name: infra.openshift_virtualization_migration.mtv_migrate
