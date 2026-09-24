@@ -9,23 +9,37 @@
     - "../vars/vault.yml"
     - "../vars/mty.yml"
 
-  environment:
-    K8S_AUTH_HOST: "{{ openshift_server }}"
-    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-    K8S_AUTH_VERIFY_SSL: "false"
-
   pre_tasks:
-    - name: Validate that a specific target host limit is defined
+    - name: Validate host limit is defined and not 'all'
       ansible.builtin.assert:
         that:
           - ansible_limit is defined or limit is defined
           - (ansible_limit | default(limit | default(''))) | trim | length > 0
           - (ansible_limit | default(limit | default(''))) | trim | lower != 'all'
           - (ansible_limit | default(limit | default(''))) | trim | lower != '*'
-        fail_msg: >-
-          MIGRATION ABORTED! You must specify a specific VM host limit.
-          Running migrations against 'all', '*', or without a limit is strictly prohibited.
-        success_msg: "Target limit verified: {{ ansible_limit | default(limit) }}"
+        fail_msg: "MIGRATION ABORTED! You must specify a specific VM limit. 'all' or '*' is not allowed."
+
+    - name: Dynamically resolve Target OpenShift Cluster credentials from Vault
+      ansible.builtin.set_fact:
+        openshift_server: "{{ vault_target_mty_openshift_host }}"
+        openshift_api_key: "{{ vault_target_mty_openshift_token }}"
+      when: selected_openshift_cluster | default('MTY Cluster') == 'MTY Cluster'
+
+    - name: Dynamically resolve Source vCenter credentials from Vault
+      ansible.builtin.set_fact:
+        vsphere_direct_host: "{{ vault_vcenter_chidebmockvc01_host }}"
+        vsphere_url: "{{ vault_vsphere_chidebmockvc01_url }}"
+        vsphere_user: "{{ vault_vcenter_chidebmockvc01_username }}"
+        vsphere_password: "{{ vault_vcenter_chidebmockvc01_password }}"
+        mtv_provider_cr_name: "{{ vault_vcenter_chidebmockvc01_fqdn }}"
+      when: selected_vcenter | default('chidebmockvc01') == 'chidebmockvc01'
+
+    - name: Set environment facts for Kubernetes module authentication
+      ansible.builtin.set_fact:
+        ansible_env_k8s_auth:
+          K8S_AUTH_HOST: "{{ openshift_server }}"
+          K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+          K8S_AUTH_VERIFY_SSL: "false"
 
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
@@ -36,28 +50,18 @@
           - name: "{{ h }}"
           {% endfor %}
 
-    - name: Validate that target VMs were resolved
-      ansible.builtin.assert:
-        that:
-          - source_vms is defined
-          - source_vms | length > 0
-        fail_msg: "No valid VMs matched the limit! Check host name spelling or inventory sync status."
-        success_msg: "Targeting {{ source_vms | length }} VM(s) for migration: {{ source_vms | map(attribute='name') | list }}"
-
-    - name: Display Migration Mode and Cutover Strategy
+    - name: Display Execution Summary
       ansible.builtin.debug:
         msg:
           - "============================================================"
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
-          - "  Target Limit:     {{ ansible_limit | default(limit) }}"
-          - "  Mode:             {{ 'WARM (Online streaming via CBT)' if is_warm else 'COLD (Source VM powered off prior to copy)' }}"
-          - "  Cutover Behavior: {{ ('SCHEDULED for ' ~ cutover_time) if (is_warm and cutover_time is defined and cutover_time | length > 0) else ('IMMEDIATE (Shutdown & cutover upon initial sync completion)' if is_warm else 'N/A (Cold Migration)') }}"
+          - "  Target Limit:       {{ ansible_limit | default(limit) }}"
+          - "  Source vCenter:     {{ selected_vcenter }} ({{ vsphere_direct_host }})"
+          - "  Target OpenShift:   {{ selected_openshift_cluster }} ({{ openshift_server }})"
+          - "  Target Namespace:   {{ target_namespace }}"
+          - "  Warm Migration:     {{ is_warm }}"
           - "============================================================"
-
-    - name: Generate unique timestamped migration plan name
-      ansible.builtin.set_fact:
-        migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
 
     - name: Power off source VMs in vSphere when performing cold migration
       community.vmware.vmware_guest:
@@ -102,7 +106,9 @@
     - name: Provision Secrets, Providers, Maps, and Migration Plans
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_management
+      environment: "{{ ansible_env_k8s_auth }}"
 
     - name: Trigger Migration Executions and Monitor Progress
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_migrate
+      environment: "{{ ansible_env_k8s_auth }}"
