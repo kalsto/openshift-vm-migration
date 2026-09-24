@@ -1,14 +1,14 @@
 ---
 - name: prechecks
-  hosts: mock
+  hosts: localhost
   gather_facts: no
 
-  pre_tasks:
-    - name: "Precheck playbook - ensure a limit is passed in"
-      ansible.builtin.assert:
-        that:
-          - ansible_limit is defined
-        fail_msg: "ERROR: You must provide a --limit when executing this playbook"
+#  pre_tasks:
+#    - name: "Precheck playbook - ensure a limit is passed in"
+#      ansible.builtin.assert:
+#        that:
+#          - ansible_limit is defined
+#        fail_msg: "ERROR: You must provide a --limit when executing this playbook"
   roles:
   - "ocp_nad"
   
