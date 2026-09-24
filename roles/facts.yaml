@@ -1,0 +1,27 @@
+---
+- name: Ensure custom facts directory exists on target
+  ansible.builtin.file:
+    path: /etc/ansible/facts.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create custom system audit facts file
+  ansible.builtin.copy:
+    dest: /etc/ansible/facts.d/system_audit.fact
+    content: |
+      [metadata]
+      last_audited_by={{ ansible_user_id | default('ansible') }}
+      last_audit_timestamp={{ ansible_date_time.iso8601 }}
+      
+      [environment]
+      kernel_version={{ ansible_kernel }}
+      total_mem_mb={{ ansible_memtotal_mb }}
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Re-gather facts to load newly created custom facts
+  ansible.builtin.setup:
+    filter: "ansible_local"

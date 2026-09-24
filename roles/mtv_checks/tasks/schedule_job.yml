@@ -1,0 +1,26 @@
+---
+- name: Calculate target schedule date for migration
+  ansible.builtin.command:
+    cmd: "date -d '+{{ days_in_future }} days' +'%Y-%m-%dT%H:%M:%SZ'"
+  register: future_date_calc
+  changed_when: false
+
+- name: Set schedule timestamp
+  ansible.builtin.set_fact:
+    scheduled_rrule: "DTSTART:{{ future_date_calc.stdout | regex_replace('[-:]', '') }} RRULE:FREQ=DAILY;COUNT=1"
+
+- name: Schedule future AAP Job Template with pre-check annotations
+  infra.aap_utilities.schedule:
+    controller_host: "{{ aap_host }}"
+    controller_oauthtoken: "{{ aap_token }}"
+    validate_certs: false
+    name: "Scheduled MTV Migration for {{ target_vms | join(',') }}"
+    state: present
+    unified_job_template: "{{ migration_job_template_name }}"
+    rrule: "{{ scheduled_rrule }}"
+    limit: "{{ target_vms | join(',') }}"
+    extra_data:
+      survey_target_vms: "{{ target_vms }}"
+      survey_migration_type: "{{ migration_type }}"
+      pre_check_status: "PASSED"
+      sanity_results: "{{ vm_check_results }}"

@@ -1,0 +1,135 @@
+---
+- name: Execute MTV Migration Plan on Red Hat OpenShift
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    # Read variables passed via extra_vars/annotations from the schedule
+    target_vms: "{{ survey_target_vms | default([]) }}"
+    migration_type: "{{ survey_migration_type | default('warm') }}" # 'warm' or 'cold'
+    
+    ocp_auth_host: "https://api.ocp.example.com:6443"
+    ocp_auth_token: "sha256~your_ocp_token_here"
+    mtv_namespace: "openshift-migration"
+    target_namespace: "vm-workloads"
+    plan_name: "scheduled-migration-{{ 1000 | random }}"
+
+  tasks:
+    - name: Construct VM specs array for MTV Plan
+      ansible.builtin.set_fact:
+        mtv_vm_list: "{{ mtv_vm_list | default([]) + [{'name': item}] }}"
+      loop: "{{ target_vms }}"
+
+    - name: Create MTV Migration Plan Custom Resource on OpenShift
+      redhat.openshift.k8s:
+        host: "{{ ocp_auth_host }}"
+        api_key: "{{ ocp_auth_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: forklift.konveyor.io/v1beta1
+          kind: Plan
+          metadata:
+            name: "{{ plan_name }}"
+            namespace: "{{ mtv_namespace }}"
+          spec:
+            warm: "{{ true if migration_type == 'warm' else false }}"
+            provider:
+              source:
+                name: "vcenter-provider"
+                namespace: "{{ mtv_namespace }}"
+              destination:
+                name: "host" # Native OpenShift Virtualization Provider
+                namespace: "{{ mtv_namespace }}"
+            targetNamespace: "{{ target_namespace }}"
+            vms: "{{ mtv_vm_list }}"
+
+    - name: Create MTV Migration Execution CR (Triggers actual data transfer)
+      redhat.openshift.k8s:
+        host: "{{ ocp_auth_host }}"
+        api_key: "{{ ocp_auth_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: forklift.konveyor.io/v1beta1
+          kind: Migration
+          metadata:
+            name: "{{ plan_name }}-exec"
+            namespace: "{{ mtv_namespace }}"
+          spec:
+            plan:
+              name: "{{ plan_name }}"
+              namespace: "{{ mtv_namespace }}"
+
+    # Cold Migration Wait Task
+    - name: Wait for Cold Migration to complete on OpenShift
+      redhat.openshift.k8s_info:
+        host: "{{ ocp_auth_host }}"
+        api_key: "{{ ocp_auth_token }}"
+        validate_certs: false
+        api_version: forklift.konveyor.io/v1beta1
+        kind: Migration
+        name: "{{ plan_name }}-exec"
+        namespace: "{{ mtv_namespace }}"
+      register: migration_status
+      until:
+        - migration_status.resources[0].status.conditions is defined
+        - (migration_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Succeeded') | list | length > 0)
+      retries: 60
+      delay: 30
+      when: migration_type == 'cold'
+
+    # Warm Migration Cutover Steps
+    - name: Wait for Warm Migration pre-copy phases to complete
+      redhat.openshift.k8s_info:
+        host: "{{ ocp_auth_host }}"
+        api_key: "{{ ocp_auth_token }}"
+        validate_certs: false
+        api_version: forklift.konveyor.io/v1beta1
+        kind: Migration
+        name: "{{ plan_name }}-exec"
+        namespace: "{{ mtv_namespace }}"
+      register: warm_status
+      until:
+        - warm_status.resources[0].status.vmware.readyForCutover is defined
+        - warm_status.resources[0].status.vmware.readyForCutover == true
+      retries: 120
+      delay: 30
+      when: migration_type == 'warm'
+
+    - name: Execute Cutover for Warm Migration
+      redhat.openshift.k8s_json_patch:
+        host: "{{ ocp_auth_host }}"
+        api_key: "{{ ocp_auth_token }}"
+        validate_certs: false
+        api_version: forklift.konveyor.io/v1beta1
+        kind: Migration
+        name: "{{ plan_name }}-exec"
+        namespace: "{{ mtv_namespace }}"
+        patch:
+          - op: add
+            path: /spec/cutover
+            value: "{{ ansible_date_time.iso8601 }}"
+      when: migration_type == 'warm'
+
+    - name: Wait for Warm Migration cutover and finalization to succeed
+      redhat.openshift.k8s_info:
+        host: "{{ ocp_auth_host }}"
+        api_key: "{{ ocp_auth_token }}"
+        validate_certs: false
+        api_version: forklift.konveyor.io/v1beta1
+        kind: Migration
+        name: "{{ plan_name }}-exec"
+        namespace: "{{ mtv_namespace }}"
+      register: final_warm_status
+      until:
+        - final_warm_status.resources[0].status.conditions is defined
+        - (final_warm_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Succeeded') | list | length > 0)
+      retries: 60
+      delay: 30
+      when: migration_type == 'warm'
+
+    - name: Output Migration Success Confirmation
+      ansible.builtin.debug:
+        msg: "Migration {{ plan_name }} ({{ migration_type | upper }}) successfully completed on OpenShift Virtualization!"

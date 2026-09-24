@@ -1,0 +1,28 @@
+---
+- name: Gather VM facts from vCenter
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_host }}"
+    username: "{{ lookup('env', 'VMWARE_USER') }}"
+    password: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+    validate_certs: false
+    datacenter: "Datacenter"
+    name: "{{ item }}"
+  loop: "{{ target_vms }}"
+  register: vm_facts
+
+- name: Evaluate VM parameters for known MTV migration blockers
+  ansible.builtin.set_fact:
+    vm_check_results: "{{ vm_check_results | default([]) + [{
+      'vm_name': item.instance.hw_name,
+      'has_snapshots': (item.instance.snapshots | length > 0),
+      'has_cdrom_mounted': (item.instance.hw_cdroms | selectattr('iso_path', 'defined') | length > 0),
+      'power_state': item.instance.hw_power_status
+    }] }}"
+  loop: "{{ vm_facts.results }}"
+  when: item.instance is defined
+
+- name: Fail execution if blocker condition exists
+  ansible.builtin.fail:
+    msg: "MTV Blocker detected on VM {{ item.vm_name }}: active snapshots or mounted CD-ROMs found."
+  when: item.has_snapshots or item.has_cdrom_mounted
+  loop: "{{ vm_check_results }}"

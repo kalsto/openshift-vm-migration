@@ -1,0 +1,27 @@
+---
+#- name: "{{ role_name }} | check"
+#  ansible.builtin.assert:
+#    that:
+#      
+- name: "{{ role_name }} | grab existing nad definitions"
+  kubernetes.core.k8s_info:
+    api_version: k8s.cni.cncf.io/v1
+    kind: NetworkAttachmentDefinition
+    namespace: "default"
+  register: ocp_existing_nads
+
+- name: "{{ role_name }} | set fact for expected and existing nads"
+  ansible.builtin.set_fact:
+    expected_nad_names: "{{ ocp_required_vlans | map('format', ocp_nad_naming_convention) | list }}"
+    existing_nad_names: "{{ ocp_existing_nads.resources | map(attribute='metadata.name') | list }}"
+
+- name: "{{ role_name }} | Determine if any nads are missing"
+  ansible.builtin.set_fact:
+    missing_ocp_nad: "{{ expected_nad_names | difference(existing_nad_names) }}"
+
+- name: "{{ role_name }} | Fail for now if any NADs are missing"
+  ansible.builtin.assert:
+    that:
+      - missing_ocp_nad | length == 0
+    fail_msg: "Validation failed! Missing NADs on '{{ mtv_ocp_short }}': '{{ target_namespace }}': {{ missing_ocp_nad }}"
+    success_msg: "Validation successful. All nads for '{{ mtv_ocp_short }}' found in '{{ target_namespace }}': '{{ existing_nad_names }}'"

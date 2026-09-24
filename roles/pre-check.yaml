@@ -1,0 +1,50 @@
+---
+- name: Gather VM details directly from vCenter
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs | default(false) }}"
+    datacenter: "{{ vm_datacenter }}"
+    name: "{{ vm_name | default(inventory_hostname) }}"
+  delegate_to: localhost
+  register: vmware_raw_info
+
+- name: Ensure target custom facts directory exists
+  ansible.builtin.file:
+    path: /etc/ansible/facts.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Write VMware metadata to target local facts
+  ansible.builtin.copy:
+    dest: /etc/ansible/facts.d/vmware.fact
+    content: >
+      {{
+        {
+          'vcenter': vcenter_hostname,
+          'hardware_version': vmware_raw_info.instance.hw_version,
+          'cpu': {
+            'sockets': vmware_raw_info.instance.hw_cores_per_socket,
+            'total_cores': vmware_raw_info.instance.hw_processor_count
+          },
+          'memory_mb': vmware_raw_info.instance.hw_mem_total_mb,
+          'network_interfaces': vmware_raw_info.instance.hw_eth0 is defined | ternary(
+            vmware_raw_info.instance | dict2items 
+            | selectattr('key', 'match', '^hw_eth[0-9]+$') 
+            | map(attribute='value') 
+            | map('extract_attrs', ['macaddress', 'ipaddresses', 'portgroup', 'summary'])
+            | list, 
+            []
+          )
+        } | to_nice_json
+      }}
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Re-gather facts to load local vmware facts
+  ansible.builtin.setup:
+    filter: "ansible_local"

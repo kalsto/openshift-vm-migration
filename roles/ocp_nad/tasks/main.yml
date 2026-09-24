@@ -1,0 +1,21 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for ocp_nad
+#
+# Need:
+#  cluster ocp name
+#  vlans
+#  cluster console api
+#  ocp login creds or token
+
+- name: "{{ role_name }} | task_main"
+  ansible.builtin.debug:
+    msg: "vsphere_host is {{ ansible_host }}" 
+
+- name: "{{ role_name }} | task_main"
+  ansible.builtin.debug:
+    msg: "required vlans are: {{ ocp_required_vlans }}"
+
+- name: "{{ role_name }} | task_main | check for nads"
+  ansible.builtin.include_file:
+    path: check.yaml

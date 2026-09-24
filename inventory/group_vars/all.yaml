@@ -1,0 +1,55 @@
+---
+# vsphere universal variables
+vsphere_user: "{{ tt_vsphere_user | default('') }}"
+vsphere_pass: "{{ tt_vsphere_pass | default('') }}"
+vsphere_storage_class: "{{ tt_vsphere_storage_class | default('') }}"
+vsphere_port_group: "{{ tt_vsphere_port_group | default('') }}"
+vsphere_datastore: "{{ tt_vsphere_datastore | default('') }}"
+
+# mtv universal variables
+vddk_image_location: "{{ tt_vddk_image_location | default('') }}"
+cicd_vm_repo: "{{ tt_cicd_vm_report | default('') }}"
+github_deploy_pat: "{{ tt_github_deploy_pat | default('') }}" # or token, or something to push code to the {{ tt_cicd_vm_repo }}
+mtv_namespace: "{{ tt_mtv_namespace | default('') }}" # Not that secret, but for simplicity, put it in the vault
+mtv_dest_namespace: "{{ tt_mtv_dest_namespace | default('') }}"
+mtv_ocp_provider: "host"
+
+
+# Distinct to each cluster - the tt_variables will be set in the host_vars vaulted file
+vsphere_host: "{{ ansible_host | default('tbd') }}"
+openshift_host: "{{ tt_openshift_host | default('tbd') }}"
+openshift_username: "{{ tt_openshift_username | default('tbd') }}"
+openshift_password: "{{ tt_openshift_password | default('tbd') }}"
+openshift_token:  "{{ tt_openshift_token | default('tbd') }}"
+
+openshift_nad: "{{ tt_openshift_nad | default('tbd') }}"
+network_map: "{{ tt_mtv_network_map | default('tbd') }}"
+storage_map: "{{ tt_mtv_storage_map | default('tbd') }}"
+
+mtv_ocp_short: "tbd"
+ocp_nad_naming_convention: "{{ mtv_ocp_short }}-vlan%s"
+
+ocp_required_vlans: # For the few known 1-offs, this can be overridden in the specific host_vars vaulted file
+  - 37
+  - 73
+  - 75
+  - 250
+  - 400
+  - 404
+  - 408
+  - 424
+  - 428
+  - 432
+  - 440
+  - 444
+  - 448
+  - 464
+  - 666
+  - 700
+  - 701
+  - 711
+  - 736
+  - 737
+  - 759
+  - 793
+  - 912

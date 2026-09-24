@@ -1,0 +1,19 @@
+---
+all:
+
+  children:
+    mock:
+      hosts:
+        mock_tokyo:
+        m_da:
+    mock_tokyo:
+      hosts:
+        mock_tokyo:
+          ansible_host: chidebmockvc01.int.tt.local
+          friendly_name: "mock-tokyo"
+        secondaryvsphere.int.tt.local:
+          friendly_name: "Not absolutely required"
+    m_da:
+      hosts:
+        unknown.tt.local:
+          friendly_name: 'm-da'

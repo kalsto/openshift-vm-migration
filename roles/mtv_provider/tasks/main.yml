@@ -1,0 +1,20 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Create or update MTV Provider CR in OpenShift
+  redhat.openshift.k8s:
+    host: "{{ ocp_auth_host }}"
+    api_key: "{{ ocp_auth_token }}"
+    validate_certs: false
+    state: present
+    definition:
+      apiVersion: forklift.konveyor.io/v1beta1
+      kind: Provider
+      metadata:
+        name: vcenter-provider
+        namespace: "{{ mtv_namespace }}"
+      spec:
+        type: vsphere
+        url: "https://{{ vcenter_host }}/sdk"
+        secret:
+          name: "{{ vcenter_secret_name }}"
+          namespace: "{{ mtv_namespace }}"
