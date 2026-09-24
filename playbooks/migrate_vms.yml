@@ -7,14 +7,12 @@
 
   vars_files:
     - "../vars/vault.yml"
-    - "../vars/mty.yml"
-
-  environment:
-    K8S_AUTH_HOST: "{{ openshift_server }}"
-    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-    K8S_AUTH_VERIFY_SSL: "false"
 
   pre_tasks:
+    - name: Dynamically include target cluster variables (mty vs mda)
+      ansible.builtin.include_vars:
+        file: "../vars/{{ 'mda.yml' if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster') else 'mty.yml' }}"
+
     - name: Validate that a specific target host limit is defined
       ansible.builtin.assert:
         that:
@@ -26,9 +24,8 @@
 
     - name: Dynamically resolve Target OpenShift Cluster credentials from Vault
       ansible.builtin.set_fact:
-        openshift_server: "{{ vault_mty_target_openshift_host }}"
-        openshift_api_key: "{{ vault_mty_target_openshift_token }}"
-      when: selected_openshift_cluster | default('MTY Cluster') == 'MTY Cluster'
+        openshift_server: "{{ vault_mda_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster') else vault_mty_target_openshift_host }}"
+        openshift_api_key: "{{ vault_mda_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster') else vault_mty_target_openshift_token }}"
 
     - name: Generate unique timestamped migration plan name
       ansible.builtin.set_fact:
@@ -107,7 +104,15 @@
     - name: Provision Secrets, Providers, Maps, and Migration Plans
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_management
+      environment:
+        K8S_AUTH_HOST: "{{ openshift_server }}"
+        K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+        K8S_AUTH_VERIFY_SSL: "false"
 
     - name: Trigger Migration Executions and Monitor Progress
       ansible.builtin.include_role:
         name: infra.openshift_virtualization_migration.mtv_migrate
+      environment:
+        K8S_AUTH_HOST: "{{ openshift_server }}"
+        K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+        K8S_AUTH_VERIFY_SSL: "false"

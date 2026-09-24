@@ -1,7 +1,7 @@
-openshift_server: "{{ vault_mty_target_openshift_host }}"
-openshift_api_key: "{{ vault_mty_target_openshift_token }}"
-openshift_user: "{{ vault_mty_target_openshift_username }}"
-openshift_password: "{{ vault_mty_target_openshift_password }}"
+openshift_server: "{{ vault_mda_target_openshift_host }}"
+openshift_api_key: "{{ vault_mda_target_openshift_token }}"
+openshift_user: "{{ vault_mda_target_openshift_username }}"
+openshift_password: "{{ vault_mda_target_openshift_password }}"
 openshift_validate_certs: false
 
 is_warm: "{{ warm_migration | default(false) | bool }}"
