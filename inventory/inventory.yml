@@ -8,7 +8,7 @@ all:
         m_da:
     mock_tokyo:
       hosts:
-        mock_tokyo:
+        m-ty:
           ansible_host: chidebmockvc01.int.tt.local
           friendly_name: "mock-tokyo"
         secondaryvsphere.int.tt.local:
