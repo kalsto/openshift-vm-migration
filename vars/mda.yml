@@ -10,7 +10,6 @@ openshift_password: "{{ vault_mda_target_openshift_password }}"
 openshift_validate_certs: false
 
 is_warm: "{{ warm_migration | default(false) | bool }}"
-cutover_at: "{{ cutover_time | default(omit) }}"
 
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('dev-cluster') }}"
@@ -136,4 +135,9 @@ mtv_migrate_migration_request:
   verify_migrations_complete: true
   vms: "{{ source_vms }}"
   warm: "{{ is_warm }}"
-  cutover: "{{ cutover_at if (is_warm and cutover_at is defined and cutover_at | length > 0) else omit }}"
+  cutover: >-
+    {{
+      cutover_time
+      if (is_warm and cutover_time is defined and cutover_time | trim | length > 0)
+      else (now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') if is_warm else omit)
+    }}
