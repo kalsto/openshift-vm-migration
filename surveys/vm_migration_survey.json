@@ -10,13 +10,13 @@
       "required": true,
       "choices": [
         "MTY Cluster",
-        "Secondary Cluster"
+        "MDA Cluster"
       ],
       "default": "MTY Cluster"
     },
     {
       "question_name": "Target OpenShift Namespace",
-      "question_description": "Destination namespace on the target cluster",
+      "question_description": "Destination namespace on the target cluster for migrated Virtual Machines",
       "variable": "target_namespace",
       "type": "text",
       "required": true,
