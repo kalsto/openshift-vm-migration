@@ -32,6 +32,16 @@
         fail_msg: "No valid VMs selected! Select target VMs or specify a limit in AAP."
         success_msg: "Targeting {{ source_vms | length }} VM(s) for migration: {{ source_vms | map(attribute='name') | list }}"
 
+    - name: Display Migration Mode and Cutover Strategy
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "  MIGRATION EXECUTION SUMMARY                                 "
+          - "============================================================"
+          - "  Mode:             {{ 'WARM (Online streaming via CBT)' if is_warm else 'COLD (Source VM powered off prior to copy)' }}"
+          - "  Cutover Behavior: {{ ('SCHEDULED for ' ~ cutover_time) if (is_warm and cutover_time is defined and cutover_time | length > 0) else ('IMMEDIATE (Shutdown & cutover upon initial sync completion)' if is_warm else 'N/A (Cold Migration)') }}"
+          - "============================================================"
+
     - name: Generate unique timestamped migration plan name
       ansible.builtin.set_fact:
         migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
