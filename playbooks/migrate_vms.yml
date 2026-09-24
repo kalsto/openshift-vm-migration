@@ -9,6 +9,11 @@
     - "../vars/vault.yml"
     - "../vars/mty.yml"
 
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_VERIFY_SSL: "false"
+
   pre_tasks:
     - name: Validate that a specific target host limit is defined
       ansible.builtin.assert:
@@ -33,13 +38,6 @@
         vsphere_password: "{{ vault_vcenter_chidebmockvc01_password }}"
         mtv_provider_cr_name: "{{ vault_vcenter_chidebmockvc01_fqdn }}"
       when: selected_vcenter | default('chidebmockvc01') == 'chidebmockvc01'
-
-    - name: Set environment facts for Kubernetes module authentication
-      ansible.builtin.set_fact:
-        ansible_env_k8s_auth:
-          K8S_AUTH_HOST: "{{ openshift_server }}"
-          K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-          K8S_AUTH_VERIFY_SSL: "false"
 
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
@@ -103,13 +101,10 @@
           spec:
             vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
 
-    - name: Execute Migration Roles with Dynamic K8s Authentication
-      environment: "{{ ansible_env_k8s_auth }}"
-      block:
-        - name: Provision Secrets, Providers, Maps, and Migration Plans
-          ansible.builtin.include_role:
-            name: infra.openshift_virtualization_migration.mtv_management
+    - name: Provision Secrets, Providers, Maps, and Migration Plans
+      ansible.builtin.include_role:
+        name: infra.openshift_virtualization_migration.mtv_management
 
-        - name: Trigger Migration Executions and Monitor Progress
-          ansible.builtin.include_role:
-            name: infra.openshift_virtualization_migration.mtv_migrate
+    - name: Trigger Migration Executions and Monitor Progress
+      ansible.builtin.include_role:
+        name: infra.openshift_virtualization_migration.mtv_migrate
