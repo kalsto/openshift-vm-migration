@@ -17,5 +17,5 @@
     msg: "required vlans are: {{ ocp_required_vlans }}"
 
 - name: "{{ role_name }} | task_main | check for nads"
-  ansible.builtin.include_file:
-    path: check.yaml
+  ansible.builtin.include_tasks:
+    file: check.yaml
