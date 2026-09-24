@@ -27,9 +27,10 @@
         openshift_server: "{{ vault_mda_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster') else vault_mty_target_openshift_host }}"
         openshift_api_key: "{{ vault_mda_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster') else vault_mty_target_openshift_token }}"
 
-    - name: Generate unique timestamped migration plan name
+    - name: Set dynamic names for migration execution
       ansible.builtin.set_fact:
         migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
+        network_map_name: "dynamic-network-map"
 
     - name: Build source_vms list from native AAP limit
       ansible.builtin.set_fact:
@@ -63,19 +64,19 @@
       ansible.builtin.set_fact:
         discovered_networks: "{{ target_vms_info.results | map(attribute='instance.network_data') | select('defined') | flatten | map(attribute='network') | unique | list }}"
 
+    - name: Construct native network mapping list
+      ansible.builtin.set_fact:
+        generated_network_mapping: "{{ generated_network_mapping | default([]) + [{'source': {'name': item}, 'destination': {'type': 'pod'}}] }}"
+      loop: "{{ discovered_networks }}"
+
     - name: Dynamically construct mtv_network_maps
       ansible.builtin.set_fact:
         mtv_network_maps:
-          - name: "test-network-map"
+          - name: "{{ network_map_name }}"
             namespace: "{{ mtv_namespace }}"
             source_provider: "{{ mtv_provider_cr_name }}"
             destination_provider: "host"
-            map: >-
-              {% set nmaps = [] %}
-              {% for net in discovered_networks %}
-              {%   set _ = nmaps.append({'source': {'name': net}, 'destination': {'type': 'pod'}}) %}
-              {% endfor %}
-              {{ nmaps }}
+            map: "{{ generated_network_mapping }}"
 
     - name: Synchronize mtv_management_network_maps fact
       ansible.builtin.set_fact:
@@ -88,6 +89,8 @@
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
           - "  Plan Name:          {{ migration_plan_name }}"
+          - "  Network Map:        {{ network_map_name }}"
+          - "  Storage Map:        {{ storage_map_name }}"
           - "  Target Limit:       {{ ansible_limit }}"
           - "  Source vCenter:     {{ vsphere_direct_host }}"
           - "  Target OpenShift:   {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"

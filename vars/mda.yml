@@ -15,8 +15,6 @@ cutover_at: "{{ cutover_time | default(omit) }}"
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('dev-cluster') }}"
 
-migration_plan_name: "vm-migration-plan"
-
 vsphere_direct_host: "{{ vault_chi_vcenter_host }}"
 mtv_provider_cr_name: "{{ vault_chi_vcenter_fqdn }}"
 
@@ -35,16 +33,19 @@ vsphere_insecure_skip_verify: true
 vsphere_datastore: "workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
-mtv_secrets: &mtv_secrets
+# Dynamic Map Names
+storage_map_name: "mda-storage-map"
+
+mtv_secrets:
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
     user: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
     url: "{{ vsphere_url }}"
-mtv_management_secrets: *mtv_secrets
+mtv_management_secrets: "{{ mtv_secrets }}"
 
-mtv_management_providers: &mtv_management_providers
+mtv_management_providers:
   - name: "{{ mtv_provider_cr_name }}"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
@@ -55,8 +56,8 @@ mtv_management_providers: &mtv_management_providers
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
 
-mtv_storage_maps: &mtv_storage_maps
-  - name: "chidebmockvc01-int-tt-local-host"
+mtv_storage_maps:
+  - name: "{{ storage_map_name }}"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
@@ -65,19 +66,19 @@ mtv_storage_maps: &mtv_storage_maps
           name: "{{ vsphere_datastore }}"
         destination:
           storageClass: "{{ target_storage_class }}"
-mtv_management_storage_maps: *mtv_storage_maps
+mtv_management_storage_maps: "{{ mtv_storage_maps }}"
 
-mtv_plans: &mtv_plans
+mtv_plans:
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
-    network_map: "test-network-map"
-    storage_map: "chidebmockvc01-int-tt-local-host"
+    network_map: "{{ network_map_name }}"
+    storage_map: "{{ storage_map_name }}"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
-mtv_management_plans: *mtv_plans
+mtv_management_plans: "{{ mtv_plans }}"
 
 mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
@@ -85,8 +86,8 @@ mtv_migrate_migration_request:
   target_namespace: "{{ target_namespace }}"
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
-  network_map: "test-network-map"
-  storage_map: "chidebmockvc01-int-tt-local-host"
+  network_map: "{{ network_map_name }}"
+  storage_map: "{{ storage_map_name }}"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
