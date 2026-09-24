@@ -1,26 +1,22 @@
 ---
-# Environment Metadata
 environment_type: "dev"
 aap_namespace: "ansible-automation-platform"
 aap_instance_name: "aap"
 storage_class: "gp3-csi-rosa-kms"
 aap_license_manifest: "{{ playbook_dir }}/../files/dev_manifest.zip"
 
-# OpenShift & RDS Pass-Throughs
-openshift_host: "{{ vault_openshift_host }}"
-openshift_username: "{{ vault_openshift_username }}"
-openshift_password: "{{ vault_openshift_password }}"
-fallback_aap_url: "{{ vault_fallback_aap_url }}"
+openshift_host: "{{ vault_int_acm_openshift_host }}"
+openshift_username: "{{ vault_int_acm_openshift_username }}"
+openshift_password: "{{ vault_int_acm_openshift_password }}"
+fallback_aap_url: "{{ vault_int_acm_fallback_aap_url }}"
 rds_host: "{{ vault_rds_host }}"
 aws_secret_id: "{{ vault_aws_secret_id }}"
 
-# Secret Names
 gateway_db_secret: "rds-gateway-configuration"
 controller_db_secret: "rds-controller-configuration"
 hub_db_secret: "rds-hub-configuration"
 eda_db_secret: "rds-eda-configuration"
 
-# AAP Organization & Resources
 aap_organization: "Dev-Organization"
 
 ah_collection_remotes:
@@ -96,23 +92,23 @@ credentials:
       url: "{{ vault_galaxy_url }}"
     state: "present"
 
-  - name: "vCenter Credentials"
-    description: "Source VMware vCenter Credentials for VM Migration"
+  - name: "vCenter - chidebmockvc01 Credentials"
+    description: "Source VMware vCenter (chidebmockvc01) credentials for VM migration"
     organization: "{{ aap_organization }}"
     credential_type: "VMware vCenter"
     inputs:
-      host: "{{ vault_vcenter_host }}"
-      username: "{{ vault_vcenter_username }}"
-      password: "{{ vault_vcenter_password }}"
+      host: "{{ vault_vcenter_chidebmockvc01_host }}"
+      username: "{{ vault_vcenter_chidebmockvc01_username }}"
+      password: "{{ vault_vcenter_chidebmockvc01_password }}"
     state: "present"
 
-  - name: "Target OpenShift Cluster API Credential"
-    description: "Bearer Token for target OpenShift Virtualization Cluster"
+  - name: "Target OpenShift - MTY Cluster Credential"
+    description: "Bearer Token for target MTY OpenShift Virtualization cluster"
     organization: "{{ aap_organization }}"
     credential_type: "OpenShift or Kubernetes API Bearer Token"
     inputs:
-      host: "{{ vault_target_openshift_host }}"
-      bearer_token: "{{ vault_target_openshift_token }}"
+      host: "{{ vault_target_mty_openshift_host }}"
+      bearer_token: "{{ vault_target_mty_openshift_token }}"
     state: "present"
 
   - name: "GitHub Deploy Key Credential"
@@ -145,11 +141,11 @@ projects:
     state: "present"
 
 inventories:
-  - name: "VM Migration Inventory"
-    description: "Dynamic inventory synced directly from VMware vCenter"
+  - name: "vCenter - chidebmockvc01 Inventory"
+    description: "Dynamic inventory synced directly from VMware vCenter chidebmockvc01"
     organization: "{{ aap_organization }}"
     source: "vmware"
-    credential: "vCenter Credentials"
+    credential: "vCenter - chidebmockvc01 Credentials"
     source_vars:
       plugin: community.vmware.vmware_vm_inventory
       validate_certs: false
@@ -164,29 +160,33 @@ job_templates:
   - name: "01 - Execute OpenShift VM Migration"
     organization: "{{ aap_organization }}"
     project: "{{ projects[0].name }}"
-    inventory: "{{ inventories[0].name }}"
+    inventory: "vCenter - chidebmockvc01 Inventory"
     playbook: "playbooks/migrate_vms.yml"
     credentials:
-      - "vCenter Credentials"
-      - "Target OpenShift Cluster API Credential"
+      - "vCenter - chidebmockvc01 Credentials"
+      - "Target OpenShift - MTY Cluster Credential"
       - "Ansible Vault Credential"
+    ask_limit_on_launch: true
+    ask_inventory_on_launch: true
+    ask_credential_on_launch: true
+    survey_enabled: true
+    survey_path: "surveys/vm_migration_survey.json"
     state: "present"
 
-# MTV & Migration Parameters
 mtv_namespace: "openshift-mtv"
 target_namespace: "dev-cluster"
-vsphere_url: "{{ vault_vsphere_url }}"
-vsphere_user: "{{ vault_vcenter_username }}"
-vsphere_password: "{{ vault_vcenter_password }}"
+vsphere_url: "{{ vault_vsphere_chidebmockvc01_url }}"
+vsphere_user: "{{ vault_vcenter_chidebmockvc01_username }}"
+vsphere_password: "{{ vault_vcenter_chidebmockvc01_password }}"
 vsphere_port_group: "segment-dev-migration"
 vsphere_datastore: "dev-workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
-openshift_server: "{{ vault_target_openshift_host }}"
-openshift_api_key: "{{ vault_target_openshift_token }}"
+openshift_server: "{{ vault_target_mty_openshift_host }}"
+openshift_api_key: "{{ vault_target_mty_openshift_token }}"
 
 provider: "vsphere"
-mtv_management_source_target: "{{ vault_vcenter_host }}"
+mtv_management_source_target: "{{ vault_vcenter_chidebmockvc01_host }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: false
@@ -196,17 +196,17 @@ vsphere_insecure_skip_verify: true
 mtv_secrets:
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
-    user: "{{ vault_vcenter_username }}"
-    password: "{{ vault_vcenter_password }}"
+    user: "{{ vault_vcenter_chidebmockvc01_username }}"
+    password: "{{ vault_vcenter_chidebmockvc01_password }}"
     insecureSkipVerify: "true"
-    url: "{{ vault_vsphere_url }}"
+    url: "{{ vault_vsphere_chidebmockvc01_url }}"
 mtv_management_secrets: "{{ mtv_secrets }}"
 
 mtv_management_providers:
-  - name: "{{ vault_vcenter_host }}"
+  - name: "{{ vault_vcenter_chidebmockvc01_host }}"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
-    url: "{{ vault_vsphere_url }}"
+    url: "{{ vault_vsphere_chidebmockvc01_url }}"
     secret: "vsphere-credentials"
     vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
   - name: "host"
@@ -216,7 +216,7 @@ mtv_management_providers:
 mtv_network_maps:
   - name: "test-network-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ vault_vcenter_host }}"
+    source_provider: "{{ vault_vcenter_chidebmockvc01_host }}"
     destination_provider: "host"
     map:
       - source:
@@ -228,7 +228,7 @@ mtv_management_network_maps: "{{ mtv_network_maps }}"
 mtv_storage_maps:
   - name: "test-storage-map"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ vault_vcenter_host }}"
+    source_provider: "{{ vault_vcenter_chidebmockvc01_host }}"
     destination_provider: "host"
     map:
       - source:
@@ -240,7 +240,7 @@ mtv_management_storage_maps: "{{ mtv_storage_maps }}"
 mtv_plans:
   - name: "{{ migration_plan_name | default('vm-migration-plan') }}"
     namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ vault_vcenter_host }}"
+    source_provider: "{{ vault_vcenter_chidebmockvc01_host }}"
     destination_provider: "host"
     network_map: "test-network-map"
     storage_map: "test-storage-map"
@@ -253,7 +253,7 @@ mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name | default('vm-migration-plan') }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
-  source: "{{ vault_vcenter_host }}"
+  source: "{{ vault_vcenter_chidebmockvc01_host }}"
   destination: "host"
   network_map: "test-network-map"
   storage_map: "test-storage-map"
@@ -262,3 +262,4 @@ mtv_migrate_migration_request:
   verify_migrations_complete: true
   vms: "{{ source_vms | default([]) }}"
   warm: "{{ is_warm | default(false) }}"
+  cutover: "{{ cutover_at if (is_warm and cutover_at is defined and cutover_at | length > 0) else omit }}"

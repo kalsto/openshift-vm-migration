@@ -15,6 +15,18 @@
     K8S_AUTH_VERIFY_SSL: "false"
 
   pre_tasks:
+    - name: Validate that a specific target host limit is defined
+      ansible.builtin.assert:
+        that:
+          - ansible_limit is defined or limit is defined
+          - (ansible_limit | default(limit | default(''))) | trim | length > 0
+          - (ansible_limit | default(limit | default(''))) | trim | lower != 'all'
+          - (ansible_limit | default(limit | default(''))) | trim | lower != '*'
+        fail_msg: >-
+          MIGRATION ABORTED! You must specify a specific VM host limit.
+          Running migrations against 'all', '*', or without a limit is strictly prohibited.
+        success_msg: "Target limit verified: {{ ansible_limit | default(limit) }}"
+
     - name: Build source_vms list from selected inventory hosts
       ansible.builtin.set_fact:
         source_vms: "{{ raw_vms_list | from_yaml }}"
@@ -29,7 +41,7 @@
         that:
           - source_vms is defined
           - source_vms | length > 0
-        fail_msg: "No valid VMs selected! Select target VMs or specify a limit in AAP."
+        fail_msg: "No valid VMs matched the limit! Check host name spelling or inventory sync status."
         success_msg: "Targeting {{ source_vms | length }} VM(s) for migration: {{ source_vms | map(attribute='name') | list }}"
 
     - name: Display Migration Mode and Cutover Strategy
@@ -38,6 +50,7 @@
           - "============================================================"
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
+          - "  Target Limit:     {{ ansible_limit | default(limit) }}"
           - "  Mode:             {{ 'WARM (Online streaming via CBT)' if is_warm else 'COLD (Source VM powered off prior to copy)' }}"
           - "  Cutover Behavior: {{ ('SCHEDULED for ' ~ cutover_time) if (is_warm and cutover_time is defined and cutover_time | length > 0) else ('IMMEDIATE (Shutdown & cutover upon initial sync completion)' if is_warm else 'N/A (Cold Migration)') }}"
           - "============================================================"

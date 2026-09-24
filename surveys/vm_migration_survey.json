@@ -1,0 +1,42 @@
+{
+  "name": "VM Migration Execution Survey",
+  "description": "Prompt for target VM limit, migration mode, target namespace, and cutover parameters",
+  "spec": [
+    {
+      "question_name": "Target VM / Host Limit",
+      "question_description": "Specify the exact VM display name or inventory host limit pattern (e.g., winweb01-dev, db-vms). Must NOT be 'all' or empty.",
+      "variable": "limit",
+      "type": "text",
+      "required": true,
+      "default": ""
+    },
+    {
+      "question_name": "Target OpenShift Namespace",
+      "question_description": "Select or enter the destination namespace on the target OpenShift Virtualization cluster",
+      "variable": "target_namespace",
+      "type": "text",
+      "required": true,
+      "default": "openshift-mtv"
+    },
+    {
+      "question_name": "Enable Warm Migration",
+      "question_description": "Perform online CBT disk replication before final cutover shutdown",
+      "variable": "warm_migration",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "true"
+    },
+    {
+      "question_name": "Scheduled Cutover Time (Optional)",
+      "question_description": "ISO-8601 UTC Timestamp for delayed cutover (e.g. 2026-09-24T03:00:00Z). Leave blank for immediate cutover upon initial sync completion.",
+      "variable": "cutover_time",
+      "type": "text",
+      "required": false,
+      "default": ""
+    }
+  ]
+}
