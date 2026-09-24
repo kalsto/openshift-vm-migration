@@ -100,21 +100,13 @@ mtv_network_maps: &mtv_network_maps
 mtv_management_network_maps: *mtv_network_maps
 
 mtv_storage_maps: &mtv_storage_maps
-  - name: "mda-storage-map"
+  - name: "chidebmockvc01-int-tt-local-host"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     map:
       - source:
-          name: "workloadshare"
-        destination:
-          storageClass: "{{ target_storage_class }}"
-      - source:
-          name: "vsanDatastore"
-        destination:
-          storageClass: "{{ target_storage_class }}"
-      - source:
-          name: "datastore1"
+          name: "{{ vsphere_datastore }}"
         destination:
           storageClass: "{{ target_storage_class }}"
 mtv_management_storage_maps: *mtv_storage_maps
@@ -125,7 +117,7 @@ mtv_plans: &mtv_plans
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     network_map: "mda-network-map"
-    storage_map: "mda-storage-map"
+    storage_map: "chidebmockvc01-int-tt-local-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
@@ -138,7 +130,7 @@ mtv_migrate_migration_request:
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
   network_map: "mda-network-map"
-  storage_map: "mda-storage-map"
+  storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
