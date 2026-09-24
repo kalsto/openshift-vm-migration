@@ -1,6 +1,6 @@
-openshift_server: "{{ vault_target_mty_openshift_host }}"
-openshift_api_key: "{{ vault_target_mty_openshift_token }}"
-openshift_user: "cluster-admin"
+openshift_server: "{{ vault_mty_target_openshift_host }}"
+openshift_api_key: "{{ vault_mty_target_openshift_token }}"
+openshift_user: "{{ vault_mty_target_openshift_username }}"
 openshift_password: ""
 openshift_validate_certs: false
 
