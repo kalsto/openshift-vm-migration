@@ -166,7 +166,7 @@ job_templates:
       - "Ansible Vault Credential"
     ask_credential_on_launch: false
     ask_inventory_on_launch: true
-    ask_limit_on_launch: false
+    ask_limit_on_launch: true
     survey_enabled: true
     survey_path: "surveys/vm_migration_survey.json"
     state: "present"

@@ -18,11 +18,11 @@
     - name: Validate that a specific target host limit is defined
       ansible.builtin.assert:
         that:
-          - ansible_limit is defined or limit is defined
-          - (ansible_limit | default(limit | default(''))) | trim | length > 0
-          - (ansible_limit | default(limit | default(''))) | trim | lower != 'all'
-          - (ansible_limit | default(limit | default(''))) | trim | lower != '*'
-        fail_msg: "MIGRATION ABORTED! You must specify a specific VM limit. 'all' or '*' is not allowed."
+          - ansible_limit is defined
+          - ansible_limit | trim | length > 0
+          - ansible_limit | trim | lower != 'all'
+          - ansible_limit | trim | lower != '*'
+        fail_msg: "MIGRATION ABORTED! You must specify a specific VM limit via the AAP Limit prompt. 'all' or '*' is not allowed."
 
     - name: Dynamically resolve Target OpenShift Cluster credentials from Vault
       ansible.builtin.set_fact:
@@ -30,16 +30,7 @@
         openshift_api_key: "{{ vault_mty_target_openshift_token }}"
       when: selected_openshift_cluster | default('MTY Cluster') == 'MTY Cluster'
 
-    - name: Dynamically resolve Source vCenter credentials from Vault
-      ansible.builtin.set_fact:
-        vsphere_direct_host: "{{ vault_mty_vcenter_host }}"
-        vsphere_url: "{{ vault_mty_vsphere_url }}"
-        vsphere_user: "{{ vault_mty_vcenter_username }}"
-        vsphere_password: "{{ vault_mty_vcenter_password }}"
-        mtv_provider_cr_name: "{{ vault_mty_vcenter_fqdn }}"
-      when: selected_vcenter | default('chidebmockvc01') == 'chidebmockvc01'
-
-    - name: Build source_vms list from selected inventory hosts
+    - name: Build source_vms list from native AAP limit
       ansible.builtin.set_fact:
         source_vms: "{{ raw_vms_list | from_yaml }}"
       vars:
@@ -48,14 +39,21 @@
           - name: "{{ h }}"
           {% endfor %}
 
+    - name: Validate that target VMs were resolved
+      ansible.builtin.assert:
+        that:
+          - source_vms is defined
+          - source_vms | length > 0
+        fail_msg: "No valid VMs matched the limit '{{ ansible_limit }}'! Check VM name spelling or inventory sync."
+
     - name: Display Execution Summary
       ansible.builtin.debug:
         msg:
           - "============================================================"
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
-          - "  Target Limit:       {{ ansible_limit | default(limit) }}"
-          - "  Source vCenter:     {{ selected_vcenter | default('chidebmockvc01') }} ({{ vsphere_direct_host }})"
+          - "  Target Limit:       {{ ansible_limit }}"
+          - "  Source vCenter:     {{ vsphere_direct_host }}"
           - "  Target OpenShift:   {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
           - "  Target Namespace:   {{ target_namespace }}"
           - "  Warm Migration:     {{ is_warm }}"

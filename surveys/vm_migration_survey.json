@@ -3,25 +3,6 @@
   "description": "Select target parameters for VM migration",
   "spec": [
     {
-      "question_name": "Target VM / Host Limit",
-      "question_description": "Specify exact VM name or limit pattern (e.g., winweb01-dev). Must NOT be 'all' or '*'.",
-      "variable": "limit",
-      "type": "text",
-      "required": true,
-      "default": ""
-    },
-    {
-      "question_name": "Source vCenter Server",
-      "question_description": "Select the source VMware vCenter server hosting the VM",
-      "variable": "selected_vcenter",
-      "type": "multiplechoice",
-      "required": true,
-      "choices": [
-        "chidebmockvc01"
-      ],
-      "default": "chidebmockvc01"
-    },
-    {
       "question_name": "Target OpenShift Cluster",
       "question_description": "Select the destination OpenShift cluster endpoint",
       "variable": "selected_openshift_cluster",
@@ -55,7 +36,7 @@
     },
     {
       "question_name": "Scheduled Cutover Time (Optional)",
-      "question_description": "ISO-8601 UTC Timestamp (e.g., 2026-09-24T03:00:00Z). Leave blank for immediate cutover.",
+      "question_description": "ISO-8601 UTC Timestamp (e.g., 2026-09-24T03:00:00Z). Leave blank for immediate cutover upon initial sync completion.",
       "variable": "cutover_time",
       "type": "text",
       "required": false,
