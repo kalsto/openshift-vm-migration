@@ -32,7 +32,6 @@ vsphere_user: "{{ vault_chi_vcenter_username }}"
 vsphere_password: "{{ vault_chi_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
-vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
@@ -55,18 +54,6 @@ mtv_management_providers: &mtv_management_providers
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
-
-mtv_network_maps: &mtv_network_maps
-  - name: "test-network-map"
-    namespace: "{{ mtv_namespace }}"
-    source_provider: "{{ mtv_provider_cr_name }}"
-    destination_provider: "host"
-    map:
-      - source:
-          name: "{{ vsphere_port_group }}"
-        destination:
-          type: "pod"
-mtv_management_network_maps: *mtv_network_maps
 
 mtv_storage_maps: &mtv_storage_maps
   - name: "chidebmockvc01-int-tt-local-host"
