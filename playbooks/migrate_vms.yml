@@ -22,13 +22,17 @@
           - ansible_limit | trim | length > 0
           - ansible_limit | trim | lower != 'all'
           - ansible_limit | trim | lower != '*'
-        fail_msg: "MIGRATION ABORTED! You must specify a specific VM limit via the AAP Limit prompt. 'all' or '*' is not allowed."
+        fail_msg: "MIGRATION ABORTED! You must specify a specific VM limit via the AAP Limit prompt."
 
     - name: Dynamically resolve Target OpenShift Cluster credentials from Vault
       ansible.builtin.set_fact:
         openshift_server: "{{ vault_mty_target_openshift_host }}"
         openshift_api_key: "{{ vault_mty_target_openshift_token }}"
       when: selected_openshift_cluster | default('MTY Cluster') == 'MTY Cluster'
+
+    - name: Generate unique timestamped migration plan name
+      ansible.builtin.set_fact:
+        migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
 
     - name: Build source_vms list from native AAP limit
       ansible.builtin.set_fact:
@@ -52,6 +56,7 @@
           - "============================================================"
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
+          - "  Plan Name:          {{ migration_plan_name }}"
           - "  Target Limit:       {{ ansible_limit }}"
           - "  Source vCenter:     {{ vsphere_direct_host }}"
           - "  Target OpenShift:   {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
