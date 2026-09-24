@@ -1,3 +1,8 @@
+# ==============================================================================
+# MTV Migration Configuration for MDA Target Cluster
+# File: vars/mda.yml
+# ==============================================================================
+
 openshift_server: "{{ vault_mda_target_openshift_host }}"
 openshift_api_key: "{{ vault_mda_target_openshift_token }}"
 openshift_user: "{{ vault_mda_target_openshift_username }}"
@@ -19,7 +24,7 @@ provider: "vsphere"
 mtv_management_source_target: "{{ mtv_provider_cr_name }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
-mtv_management_map_storage: false
+mtv_management_map_storage: true
 mtv_management_map_networks: true
 
 vsphere_url: "{{ vault_chi_vsphere_url }}"
@@ -46,7 +51,7 @@ mtv_management_providers: &mtv_management_providers
     type: "vsphere"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
-    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:8.0.3"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
