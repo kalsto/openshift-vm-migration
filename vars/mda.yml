@@ -33,7 +33,7 @@ vsphere_password: "{{ vault_chi_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
 vsphere_datastore: "workloadshare"
-target_storage_class: "ocs-external-storagecluster-ceph-rbd"
+target_storage_class: "hpe-3par-iscsi"
 
 mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
@@ -106,7 +106,15 @@ mtv_storage_maps: &mtv_storage_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_datastore }}"
+          name: "workloadshare"
+        destination:
+          storageClass: "{{ target_storage_class }}"
+      - source:
+          name: "vsanDatastore"
+        destination:
+          storageClass: "{{ target_storage_class }}"
+      - source:
+          name: "datastore1"
         destination:
           storageClass: "{{ target_storage_class }}"
 mtv_management_storage_maps: *mtv_storage_maps
