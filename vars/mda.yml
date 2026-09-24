@@ -56,7 +56,7 @@ mtv_management_providers: &mtv_management_providers
     type: "openshift"
 
 mtv_network_maps: &mtv_network_maps
-  - name: "mda-network-map"
+  - name: "chidebmockvc01-int-tt-local-host"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
@@ -116,7 +116,7 @@ mtv_plans: &mtv_plans
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
-    network_map: "mda-network-map"
+    network_map: "chidebmockvc01-int-tt-local-host"
     storage_map: "chidebmockvc01-int-tt-local-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
@@ -129,7 +129,7 @@ mtv_migrate_migration_request:
   target_namespace: "{{ target_namespace }}"
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
-  network_map: "mda-network-map"
+  network_map: "chidebmockvc01-int-tt-local-host"
   storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
