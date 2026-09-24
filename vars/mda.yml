@@ -15,6 +15,8 @@ cutover_at: "{{ cutover_time | default(omit) }}"
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('dev-cluster') }}"
 
+migration_plan_name: "vm-migration-plan"
+
 vsphere_direct_host: "{{ vault_chi_vcenter_host }}"
 mtv_provider_cr_name: "{{ vault_chi_vcenter_fqdn }}"
 
@@ -33,19 +35,16 @@ vsphere_insecure_skip_verify: true
 vsphere_datastore: "workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
-# Dynamic Map Names
-storage_map_name: "mda-storage-map"
-
-mtv_secrets:
+mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
     user: "{{ vsphere_user }}"
     password: "{{ vsphere_password }}"
     insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
     url: "{{ vsphere_url }}"
-mtv_management_secrets: "{{ mtv_secrets }}"
+mtv_management_secrets: *mtv_secrets
 
-mtv_management_providers:
+mtv_management_providers: &mtv_management_providers
   - name: "{{ mtv_provider_cr_name }}"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
@@ -56,8 +55,52 @@ mtv_management_providers:
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
 
-mtv_storage_maps:
-  - name: "{{ storage_map_name }}"
+mtv_network_maps: &mtv_network_maps
+  - name: "mda-network-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "M-DA-VLAN400"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-VLAN408"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-VLAN432"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-VLAN440"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-VLAN448"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-VLAN464"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-ISCSI-1"
+        destination:
+          type: "pod"
+      - source:
+          name: "M-DA-ISCSI-2"
+        destination:
+          type: "pod"
+      - source:
+          name: "VM Network"
+        destination:
+          type: "pod"
+mtv_management_network_maps: *mtv_network_maps
+
+mtv_storage_maps: &mtv_storage_maps
+  - name: "mda-storage-map"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
@@ -66,18 +109,19 @@ mtv_storage_maps:
           name: "{{ vsphere_datastore }}"
         destination:
           storageClass: "{{ target_storage_class }}"
-mtv_management_storage_maps: "{{ mtv_storage_maps }}"
+mtv_management_storage_maps: *mtv_storage_maps
 
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
-    network_map: "{{ migration_plan_name }}-net-map"
-    storage_map: "chidebmockvc01-int-tt-local-host"
+    network_map: "mda-network-map"
+    storage_map: "mda-storage-map"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
+mtv_management_plans: *mtv_plans
 
 mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
@@ -85,8 +129,8 @@ mtv_migrate_migration_request:
   target_namespace: "{{ target_namespace }}"
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
-  network_map: "{{ migration_plan_name }}-net-map"
-  storage_map: "chidebmockvc01-int-tt-local-host"
+  network_map: "mda-network-map"
+  storage_map: "mda-storage-map"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true

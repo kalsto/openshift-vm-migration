@@ -47,57 +47,6 @@
           - source_vms | length > 0
         fail_msg: "No valid VMs matched the limit '{{ ansible_limit }}'! Check VM name spelling or inventory sync."
 
-    - name: Query vCenter for network interfaces on target VMs
-      community.vmware.vmware_guest_info:
-        hostname: "{{ vsphere_direct_host }}"
-        username: "{{ vsphere_user }}"
-        password: "{{ vsphere_password }}"
-        validate_certs: false
-        datacenter: ""
-        name: "{{ item.name }}"
-      loop: "{{ source_vms }}"
-      register: target_vms_info
-      delegate_to: localhost
-
-    - name: Extract unique vCenter network port groups from target VMs
-      ansible.builtin.set_fact:
-        discovered_networks: >-
-          {% set nets = [] %}
-          {% for res in target_vms_info.results | default([]) %}
-            {% if res.instance is defined and res.instance.network_data is defined %}
-              {% for nd in res.instance.network_data %}
-                {% if nd.network is defined and nd.network not in nets %}
-                  {% set _ = nets.append(nd.network) %}
-                {% endif %}
-              {% endfor %}
-            {% endif %}
-          {% endfor %}
-          {{ nets }}
-
-    - name: Fallback to default port group if no networks were extracted
-      ansible.builtin.set_fact:
-        discovered_networks: "{{ [vsphere_port_group] if (vsphere_port_group is defined and vsphere_port_group | length > 0) else ['VM Network'] }}"
-      when: (discovered_networks | from_yaml | length) == 0
-
-    - name: Dynamically construct mtv_network_maps
-      ansible.builtin.set_fact:
-        mtv_network_maps:
-          - name: "{{ migration_plan_name }}-net-map"
-            namespace: "{{ mtv_namespace }}"
-            source_provider: "{{ mtv_provider_cr_name }}"
-            destination_provider: "host"
-            map: >-
-              {% set nmaps = [] %}
-              {% set active_nets = discovered_networks | from_yaml if (discovered_networks is string) else discovered_networks %}
-              {% for net in active_nets %}
-              {%   set _ = nmaps.append({'source': {'name': net}, 'destination': {'type': 'pod'}}) %}
-              {% endfor %}
-              {{ nmaps }}
-
-    - name: Synchronize mtv_management_network_maps fact
-      ansible.builtin.set_fact:
-        mtv_management_network_maps: "{{ mtv_network_maps }}"
-
     - name: Display Execution Summary
       ansible.builtin.debug:
         msg:
@@ -110,7 +59,6 @@
           - "  Target OpenShift:   {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
           - "  Target Namespace:   {{ target_namespace }}"
           - "  Warm Migration:     {{ is_warm }}"
-          - "  Discovered VLANs:   {{ discovered_networks }}"
           - "============================================================"
 
     - name: Power off source VMs in vSphere when performing cold migration
