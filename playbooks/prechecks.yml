@@ -3,6 +3,10 @@
   hosts: "{{ vms | default('localhost') }}"
   gather_facts: no
 
+  vars_files:
+    - "../vars/all_vault.yml" 
+    - "../vars/{{ mtv_ocp_short | default('tbd') }}"
+
 #  pre_tasks:
 #    - name: "Precheck playbook - ensure a limit is passed in"
 #      ansible.builtin.assert:
