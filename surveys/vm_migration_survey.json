@@ -1,14 +1,26 @@
 {
   "name": "VM Migration Execution Survey",
-  "description": "Prompt for target VM limit, migration mode, target namespace, and cutover parameters",
+  "description": "Prompt for target VM limit, target OpenShift cluster, migration mode, and cutover parameters",
   "spec": [
     {
       "question_name": "Target VM / Host Limit",
-      "question_description": "Specify the exact VM display name or inventory host limit pattern (e.g., winweb01-dev, db-vms). Must NOT be 'all' or empty.",
+      "question_description": "Specify the exact VM display name or inventory host limit pattern (e.g., winweb01-dev, db-vms). Must NOT be 'all' or '*'.",
       "variable": "limit",
       "type": "text",
       "required": true,
       "default": ""
+    },
+    {
+      "question_name": "Target OpenShift Cluster",
+      "question_description": "Select the destination OpenShift Virtualization cluster endpoint for this migration",
+      "variable": "target_openshift_cluster",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "Target OpenShift - MTY Cluster",
+        "Target OpenShift - Secondary Cluster"
+      ],
+      "default": "Target OpenShift - MTY Cluster"
     },
     {
       "question_name": "Target OpenShift Namespace",
