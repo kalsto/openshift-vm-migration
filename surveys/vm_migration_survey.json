@@ -10,9 +10,10 @@
       "required": true,
       "choices": [
         "MTY Cluster",
-        "MDA Cluster"
+        "MDA Cluster",
+        "MNY Cluster"
       ],
-      "default": "MTY Cluster"
+      "default": ""
     },
     {
       "question_name": "Target OpenShift Namespace",
