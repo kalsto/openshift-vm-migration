@@ -74,39 +74,35 @@
       delegate_to: localhost
 
   tasks:
-    - name: Ensure Target Namespace Exists on Target Cluster
-      kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
-        validate_certs: false
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: "{{ target_namespace }}"
-
-    - name: Ensure Global ForkliftController Uses VDDK Image
-      kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
-        validate_certs: false
-        state: present
-        definition:
-          apiVersion: forklift.konveyor.io/v1beta1
-          kind: ForkliftController
-          metadata:
-            name: forklift-controller
-            namespace: "{{ mtv_namespace }}"
-          spec:
-            vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
-
-    - name: Execute MTV Migration Roles with Error Isolation
-      environment:
-        K8S_AUTH_HOST: "{{ openshift_server }}"
-        K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
-        K8S_AUTH_VERIFY_SSL: "false"
+    - name: Migration Execution and Automated Rollback Block
       block:
+        - name: Ensure Target Namespace Exists on Target Cluster
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: "{{ target_namespace }}"
+
+        - name: Ensure Global ForkliftController Uses VDDK Image
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: ForkliftController
+              metadata:
+                name: forklift-controller
+                namespace: "{{ mtv_namespace }}"
+              spec:
+                vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+
         - name: Provision Secrets, Providers, Maps, and Migration Plans
           ansible.builtin.include_role:
             name: infra.openshift_virtualization_migration.mtv_management
@@ -114,102 +110,87 @@
         - name: Trigger Migration Executions and Monitor Progress
           ansible.builtin.include_role:
             name: infra.openshift_virtualization_migration.mtv_migrate
+
+      # -------------------------------------------------------------------------
+      # RESCUE BLOCK - RUNS AUTOMATICALLY IF MIGRATION FAILS
+      # -------------------------------------------------------------------------
+      rescue:
+        - name: ROLLBACK - Query Migration Status to Identify Failed VMs
+          kubernetes.core.k8s_info:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            api_version: forklift.konveyor.io/v1beta1
+            kind: Migration
+            name: "{{ migration_plan_name }}"
+            namespace: "{{ mtv_namespace }}"
+          register: failed_migration_info
           ignore_errors: true
 
-  post_tasks:
-    - name: Fetch Migration CR Status from Target OpenShift Cluster
-      kubernetes.core.k8s_info:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
-        validate_certs: false
-        api_version: forklift.konveyor.io/v1beta1
-        kind: Migration
-        name: "{{ migration_plan_name }}"
-        namespace: "{{ mtv_namespace }}"
-      register: migration_cr_info
-      ignore_errors: true
+        - name: ROLLBACK - Determine Target VMs for Rollback
+          ansible.builtin.set_fact:
+            rollback_vms: >-
+              {{
+                (failed_migration_info.resources[0].status.vms | default([]))
+                | selectattr('conditions', 'defined')
+                | selectattr('conditions', 'search', 'Failed')
+                | map(attribute='name') | list
+                if (failed_migration_info.resources | default([]) | length > 0)
+                else (source_vms | map(attribute='name') | list)
+              }}
 
-    - name: Extract Succeeded and Failed VM Lists from Migration Status
-      ansible.builtin.set_fact:
-        failed_vms: >-
-          {{
-            (migration_cr_info.resources[0].status.vms | default([]))
-            | selectattr('conditions', 'defined')
-            | selectattr('conditions', 'search', 'Failed')
-            | map(attribute='name') | list
-          }}
-        succeeded_vms: >-
-          {{
-            (migration_cr_info.resources[0].status.vms | default([]))
-            | rejectattr('conditions', 'search', 'Failed')
-            | map(attribute='name') | list
-          }}
+        - name: ROLLBACK - Power back ON source VMs in vSphere (Cold Migration Only)
+          community.vmware.vmware_guest:
+            hostname: "{{ vsphere_direct_host }}"
+            username: "{{ vsphere_user }}"
+            password: "{{ vsphere_password }}"
+            validate_certs: false
+            name: "{{ item }}"
+            state: poweredon
+          loop: "{{ rollback_vms }}"
+          when: not is_warm
+          delegate_to: localhost
+          ignore_errors: true
 
-    - name: Display Per-VM Execution Results
-      ansible.builtin.debug:
-        msg:
-          - "============================================================"
-          - "  PER-VM MIGRATION RESULTS SUMMARY                           "
-          - "============================================================"
-          - "  Succeeded VMs: {{ succeeded_vms }}"
-          - "  Failed VMs:    {{ failed_vms }}"
-          - "============================================================"
+        - name: ROLLBACK - Delete failed VirtualMachine CRs on OpenShift
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: absent
+            api_version: kubevirt.io/v1
+            kind: VirtualMachine
+            name: "{{ item }}"
+            namespace: "{{ target_namespace }}"
+          loop: "{{ rollback_vms }}"
+          ignore_errors: true
 
-    # -------------------------------------------------------------------------
-    # ROLLBACK ACTIONS FOR FAILED VMs
-    # -------------------------------------------------------------------------
-    - name: ROLLBACK - Power back ON failed source VMs in vSphere (Cold Migration Only)
-      community.vmware.vmware_guest:
-        hostname: "{{ vsphere_direct_host }}"
-        username: "{{ vsphere_user }}"
-        password: "{{ vsphere_password }}"
-        validate_certs: false
-        name: "{{ item }}"
-        state: poweredon
-      loop: "{{ failed_vms }}"
-      when:
-        - not is_warm
-        - failed_vms is defined
-        - failed_vms | length > 0
-      delegate_to: localhost
-      ignore_errors: true
+        - name: ROLLBACK - Delete orphan PersistentVolumeClaims on OpenShift
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: absent
+            api_version: v1
+            kind: PersistentVolumeClaim
+            namespace: "{{ target_namespace }}"
+            label_selectors:
+              - "vm.kubevirt.io/name={{ item }}"
+          loop: "{{ rollback_vms }}"
+          ignore_errors: true
 
-    - name: ROLLBACK - Delete incomplete VirtualMachine instances on OpenShift
-      kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
-        validate_certs: false
-        state: absent
-        api_version: kubevirt.io/v1
-        kind: VirtualMachine
-        name: "{{ item }}"
-        namespace: "{{ target_namespace }}"
-      loop: "{{ failed_vms }}"
-      when:
-        - failed_vms is defined
-        - failed_vms | length > 0
-      ignore_errors: true
+        - name: ROLLBACK - Delete failed MTV Migration Request
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: absent
+            api_version: forklift.konveyor.io/v1beta1
+            kind: Migration
+            name: "{{ migration_plan_name }}"
+            namespace: "{{ mtv_namespace }}"
+          ignore_errors: true
 
-    - name: ROLLBACK - Delete orphan PersistentVolumeClaims for failed VMs
-      kubernetes.core.k8s:
-        host: "{{ openshift_server }}"
-        api_key: "{{ openshift_api_key }}"
-        validate_certs: false
-        state: absent
-        api_version: v1
-        kind: PersistentVolumeClaim
-        namespace: "{{ target_namespace }}"
-        label_selectors:
-          - "vm.kubevirt.io/name={{ item }}"
-      loop: "{{ failed_vms }}"
-      when:
-        - failed_vms is defined
-        - failed_vms | length > 0
-      ignore_errors: true
-
-    - name: Assert Migration Success
-      ansible.builtin.assert:
-        that:
-          - failed_vms | length == 0
-        fail_msg: "MIGRATION COMPLETED WITH ERRORS! The following VMs failed and were rolled back: {{ failed_vms }}"
-        success_msg: "All target VMs in batch migrated successfully!"
+        - name: MIGRATION FAILED - Trigger AAP Job Failure
+          ansible.builtin.fail:
+            msg: "MIGRATION FAILED! Automated rollback complete for VMs: {{ rollback_vms }}. Source VMs powered back on in vSphere and temporary OpenShift resources cleaned up."
