@@ -5,6 +5,12 @@
   gather_facts: false
   run_once: true
 
+  # Top-level environment ensures ALL role tasks inherit target cluster credentials
+  environment:
+    K8S_AUTH_HOST: "{{ openshift_server }}"
+    K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+    K8S_AUTH_VERIFY_SSL: "false"
+
   vars_files:
     - "../vars/vault.yml"
 
