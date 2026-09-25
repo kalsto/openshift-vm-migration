@@ -101,7 +101,7 @@
           spec:
             vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
 
-    - name: Execute MTV Migration Roles with Target Cluster Environment
+    - name: Execute MTV Migration Roles with Error Isolation
       environment:
         K8S_AUTH_HOST: "{{ openshift_server }}"
         K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
@@ -114,3 +114,102 @@
         - name: Trigger Migration Executions and Monitor Progress
           ansible.builtin.include_role:
             name: infra.openshift_virtualization_migration.mtv_migrate
+          ignore_errors: true
+
+  post_tasks:
+    - name: Fetch Migration CR Status from Target OpenShift Cluster
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false
+        api_version: forklift.konveyor.io/v1beta1
+        kind: Migration
+        name: "{{ migration_plan_name }}"
+        namespace: "{{ mtv_namespace }}"
+      register: migration_cr_info
+      ignore_errors: true
+
+    - name: Extract Succeeded and Failed VM Lists from Migration Status
+      ansible.builtin.set_fact:
+        failed_vms: >-
+          {{
+            (migration_cr_info.resources[0].status.vms | default([]))
+            | selectattr('conditions', 'defined')
+            | selectattr('conditions', 'search', 'Failed')
+            | map(attribute='name') | list
+          }}
+        succeeded_vms: >-
+          {{
+            (migration_cr_info.resources[0].status.vms | default([]))
+            | rejectattr('conditions', 'search', 'Failed')
+            | map(attribute='name') | list
+          }}
+
+    - name: Display Per-VM Execution Results
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "  PER-VM MIGRATION RESULTS SUMMARY                           "
+          - "============================================================"
+          - "  Succeeded VMs: {{ succeeded_vms }}"
+          - "  Failed VMs:    {{ failed_vms }}"
+          - "============================================================"
+
+    # -------------------------------------------------------------------------
+    # ROLLBACK ACTIONS FOR FAILED VMs
+    # -------------------------------------------------------------------------
+    - name: ROLLBACK - Power back ON failed source VMs in vSphere (Cold Migration Only)
+      community.vmware.vmware_guest:
+        hostname: "{{ vsphere_direct_host }}"
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_password }}"
+        validate_certs: false
+        name: "{{ item }}"
+        state: poweredon
+      loop: "{{ failed_vms }}"
+      when:
+        - not is_warm
+        - failed_vms is defined
+        - failed_vms | length > 0
+      delegate_to: localhost
+      ignore_errors: true
+
+    - name: ROLLBACK - Delete incomplete VirtualMachine instances on OpenShift
+      kubernetes.core.k8s:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false
+        state: absent
+        api_version: kubevirt.io/v1
+        kind: VirtualMachine
+        name: "{{ item }}"
+        namespace: "{{ target_namespace }}"
+      loop: "{{ failed_vms }}"
+      when:
+        - failed_vms is defined
+        - failed_vms | length > 0
+      ignore_errors: true
+
+    - name: ROLLBACK - Delete orphan PersistentVolumeClaims for failed VMs
+      kubernetes.core.k8s:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false
+        state: absent
+        api_version: v1
+        kind: PersistentVolumeClaim
+        namespace: "{{ target_namespace }}"
+        label_selectors:
+          - "vm.kubevirt.io/name={{ item }}"
+      loop: "{{ failed_vms }}"
+      when:
+        - failed_vms is defined
+        - failed_vms | length > 0
+      ignore_errors: true
+
+    - name: Assert Migration Success
+      ansible.builtin.assert:
+        that:
+          - failed_vms | length == 0
+        fail_msg: "MIGRATION COMPLETED WITH ERRORS! The following VMs failed and were rolled back: {{ failed_vms }}"
+        success_msg: "All target VMs in batch migrated successfully!"
