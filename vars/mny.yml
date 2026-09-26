@@ -33,7 +33,7 @@ vsphere_password: "{{ vault_chi_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
 vsphere_datastore: "workloadshare"
-target_storage_class: "gp3-csi" # ROSA Default AWS StorageClass (run 'oc get sc' on MNY to confirm)
+target_storage_class: "gp3-csi"
 
 mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
@@ -56,7 +56,7 @@ mtv_management_providers: &mtv_management_providers
     type: "openshift"
 
 mtv_network_maps: &mtv_network_maps
-  - name: "chidebmockvc01-int-tt-local-host"
+  - name: "mny-vlan-net-map"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
@@ -116,7 +116,7 @@ mtv_plans: &mtv_plans
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
-    network_map: "chidebmockvc01-int-tt-local-host"
+    network_map: "mny-vlan-net-map"
     storage_map: "chidebmockvc01-int-tt-local-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
@@ -129,7 +129,7 @@ mtv_migrate_migration_request:
   target_namespace: "{{ target_namespace }}"
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
-  network_map: "chidebmockvc01-int-tt-local-host"
+  network_map: "mny-vlan-net-map"
   storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
