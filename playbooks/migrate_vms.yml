@@ -32,13 +32,13 @@
         openshift_server: >-
           {{
             vault_mda_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
-            else (vault_mny_target_openshift_host if (selected_openshift_cluster | default('MNY Cluster') == 'MNY Cluster')
+            else (vault_mny_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
             else vault_mty_target_openshift_host)
           }}
         openshift_api_key: >-
           {{
             vault_mda_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
-            else (vault_mny_target_openshift_token if (selected_openshift_cluster | default('MNY Cluster') == 'MNY Cluster')
+            else (vault_mny_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
             else vault_mty_target_openshift_token)
           }}
 
@@ -94,7 +94,8 @@
     - name: Assert CBT is enabled on all VMs for warm migration
       ansible.builtin.assert:
         that:
-          - item.instance.change_tracking | default(false) | bool
+          - (item.instance.change_tracking | default(false) | bool) or
+            (item.instance.advanced_settings.ctkEnabled | default('false') | bool)
         fail_msg: "WARM MIGRATION ABORTED! VM '{{ item.item.name }}' does not have Changed Block Tracking (CBT) enabled in vSphere. Enable CBT on the VM or perform a cold migration."
       loop: "{{ vm_cbt_check.results | default([]) }}"
       when:
