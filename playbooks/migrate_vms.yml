@@ -205,9 +205,42 @@
                | selectattr('message', 'defined')
                | selectattr('message', 'search', 'CBT') | list | length > 0)
 
-        - name: Trigger Migration Executions and Monitor Progress
-          ansible.builtin.include_role:
-            name: infra.openshift_virtualization_migration.mtv_migrate
+        # -------------------------------------------------------------------------
+        # EXECUTION & MONITORING
+        # -------------------------------------------------------------------------
+        - name: Trigger Migration Execution in MTV
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: Migration
+              metadata:
+                name: "{{ migration_plan_name }}-exec"
+                namespace: "{{ mtv_namespace }}"
+              spec:
+                plan:
+                  name: "{{ migration_plan_name }}"
+                  namespace: "{{ mtv_namespace }}"
+
+        - name: Poll Migration Progress Until Complete
+          kubernetes.core.k8s_info:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            api_version: forklift.konveyor.io/v1beta1
+            kind: Plan
+            name: "{{ migration_plan_name }}"
+            namespace: "{{ mtv_namespace }}"
+          register: live_plan
+          until:
+            - live_plan.resources is defined
+            - live_plan.resources | length > 0
+            - live_plan.resources[0].status.migration.completed is defined
+          retries: 240 # 1 hour max (240 * 15s)
+          delay: 15
           ignore_errors: true
 
   post_tasks:
@@ -252,6 +285,17 @@
     - name: Set Plan Failure Flag
       ansible.builtin.set_fact:
         plan_has_failed: "{{ (failed_vms | length) > 0 }}"
+
+    - name: Display Final Migration Summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "  MIGRATION EXECUTION COMPLETED                              "
+          - "============================================================"
+          - "  Plan Name:        {{ migration_plan_name }}"
+          - "  Failed VMs:       {{ failed_vms }}"
+          - "  Plan Failed:      {{ plan_has_failed }}"
+          - "============================================================"
 
     - name: Execute Automated Rollback Block
       when: plan_has_failed | bool
