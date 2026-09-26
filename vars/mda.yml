@@ -117,6 +117,7 @@ mtv_network_maps: &mtv_network_maps
           namespace: "openshift-mtv"
 
       - source:
+          id: "network-24176"
           name: "VM Network"
         destination:
           type: "pod"
