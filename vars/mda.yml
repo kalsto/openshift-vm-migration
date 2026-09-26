@@ -25,6 +25,8 @@ mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: true
 mtv_management_map_networks: true
+mtv_management_create_secrets: true
+mtv_management_create_providers: true
 
 vsphere_url: "{{ vault_chi_vsphere_url }}"
 vsphere_user: "{{ vault_chi_vcenter_username }}"
@@ -43,7 +45,7 @@ mtv_secrets: &mtv_secrets
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
-mtv_management_providers: &mtv_management_providers
+mtv_providers: &mtv_providers
   - name: "{{ mtv_provider_cr_name }}"
     namespace: "{{ mtv_namespace }}"
     type: "vsphere"
@@ -53,6 +55,7 @@ mtv_management_providers: &mtv_management_providers
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
+mtv_management_providers: *mtv_providers
 
 mtv_network_maps: &mtv_network_maps
   - name: "mda-vlan-net-map"
