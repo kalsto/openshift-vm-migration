@@ -173,7 +173,9 @@
 
     - name: Determine Failed VMs from Plan Conditions
       ansible.builtin.set_fact:
-        failed_vms: >-
+        failed_vms: "{{ raw_failed_vms | from_json }}"
+      vars:
+        raw_failed_vms: |
           {% set fvms = [] %}
           {% if plan_status_info.resources is defined and plan_status_info.resources | length > 0 %}
             {% for vm in plan_status_info.resources[0].status.migration.vms | default([]) %}
@@ -190,7 +192,7 @@
           {% else %}
             {% set fvms = source_vms | map(attribute='name') | list %}
           {% endif %}
-          {{ fvms }}
+          {{ fvms | to_json }}
 
     - name: Set Plan Failure Flag
       ansible.builtin.set_fact:
