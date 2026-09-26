@@ -32,13 +32,13 @@
         openshift_server: >-
           {{
             vault_mda_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
-            else (vault_mny_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
+            else (vault_mny_target_openshift_host if (selected_openshift_cluster | default('MNY Cluster') == 'MNY Cluster')
             else vault_mty_target_openshift_host)
           }}
         openshift_api_key: >-
           {{
             vault_mda_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
-            else (vault_mny_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
+            else (vault_mny_target_openshift_token if (selected_openshift_cluster | default('MNY Cluster') == 'MNY Cluster')
             else vault_mty_target_openshift_token)
           }}
 
@@ -205,42 +205,9 @@
                | selectattr('message', 'defined')
                | selectattr('message', 'search', 'CBT') | list | length > 0)
 
-        # -------------------------------------------------------------------------
-        # EXECUTION & MONITORING
-        # -------------------------------------------------------------------------
-        - name: Trigger Migration Execution in MTV
-          kubernetes.core.k8s:
-            host: "{{ openshift_server }}"
-            api_key: "{{ openshift_api_key }}"
-            validate_certs: false
-            state: present
-            definition:
-              apiVersion: forklift.konveyor.io/v1beta1
-              kind: Migration
-              metadata:
-                name: "{{ migration_plan_name }}-exec"
-                namespace: "{{ mtv_namespace }}"
-              spec:
-                plan:
-                  name: "{{ migration_plan_name }}"
-                  namespace: "{{ mtv_namespace }}"
-
-        - name: Poll Migration Progress Until Complete
-          kubernetes.core.k8s_info:
-            host: "{{ openshift_server }}"
-            api_key: "{{ openshift_api_key }}"
-            validate_certs: false
-            api_version: forklift.konveyor.io/v1beta1
-            kind: Plan
-            name: "{{ migration_plan_name }}"
-            namespace: "{{ mtv_namespace }}"
-          register: live_plan
-          until:
-            - live_plan.resources is defined
-            - live_plan.resources | length > 0
-            - live_plan.resources[0].status.migration.completed is defined
-          retries: 240 # 1 hour max (240 * 15s)
-          delay: 15
+        - name: Trigger Migration Executions and Monitor Progress
+          ansible.builtin.include_role:
+            name: infra.openshift_virtualization_migration.mtv_migrate
           ignore_errors: true
 
   post_tasks:
