@@ -48,7 +48,7 @@ mtv_management_secrets: *mtv_secrets
 mtv_providers: &mtv_providers
   - name: "{{ mtv_provider_cr_name }}"
     namespace: "{{ mtv_namespace }}"
-    type: "vsphere"
+    type: "vmware"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
     vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
