@@ -122,6 +122,30 @@
               spec:
                 vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
 
+        - name: Ensure Target NetworkMap CR Exists on Target Cluster
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: NetworkMap
+              metadata:
+                name: "{{ item.name }}"
+                namespace: "{{ item.namespace }}"
+              spec:
+                provider:
+                  source:
+                    name: "{{ item.source_provider }}"
+                    namespace: "{{ item.namespace }}"
+                  destination:
+                    name: "{{ item.destination_provider }}"
+                    namespace: "{{ item.namespace }}"
+                map: "{{ item.map }}"
+          loop: "{{ mtv_network_maps }}"
+          when: mtv_network_maps is defined and mtv_network_maps | length > 0
+
         - name: Provision Secrets, Providers, Maps, and Migration Plans
           ansible.builtin.include_role:
             name: infra.openshift_virtualization_migration.mtv_management
