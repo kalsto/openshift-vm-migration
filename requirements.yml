@@ -7,6 +7,8 @@ collections:
   - name: ansible.utils
   - name: ansible.controller
   - name: awx.awx
-  - name: https://github.com/redhat-cop/openshift_virtualization_migration.git
-    type: git
+  - name: infra.openshift_virtualization_migration
     version: v1.25.0
+#  - name: https://github.com/redhat-cop/openshift_virtualization_migration.git
+#    type: git
+#    version: v1.25.0
