@@ -10,7 +10,7 @@ all:
       hosts:
         m-ty:
           ansible_host: chidebmockvc01.int.tt.local
-          friendly_name: "mock-tokyo"
+          friendly_name: "m-ty"
           mtv_ocp_short: "m-ty"
         secondaryvsphere.int.tt.local:
           friendly_name: "Not absolutely required"
@@ -18,3 +18,4 @@ all:
       hosts:
         unknown.tt.local:
           friendly_name: 'm-da'
+          mtv_ocp_short: 'm-da'
