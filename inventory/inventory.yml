@@ -11,6 +11,7 @@ all:
         m-ty:
           ansible_host: chidebmockvc01.int.tt.local
           friendly_name: "mock-tokyo"
+          mtv_ocp_short: "m-ty"
         secondaryvsphere.int.tt.local:
           friendly_name: "Not absolutely required"
     m_da:
