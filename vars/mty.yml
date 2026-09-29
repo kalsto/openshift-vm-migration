@@ -10,7 +10,6 @@ openshift_password: "{{ vault_mty_target_openshift_password }}"
 openshift_validate_certs: false
 
 is_warm: "{{ warm_migration | default(false) | bool }}"
-cutover_at: "{{ cutover_time | default(omit) }}"
 
 mtv_namespace: "openshift-mtv"
 target_namespace: "{{ target_namespace | default('dev-cluster') }}"
@@ -26,13 +25,14 @@ mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
 mtv_management_map_storage: true
 mtv_management_map_networks: true
+mtv_management_create_secrets: true
+mtv_management_create_providers: true
 
 vsphere_url: "{{ vault_chi_vsphere_url }}"
 vsphere_user: "{{ vault_chi_vcenter_username }}"
 vsphere_password: "{{ vault_chi_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
-vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
@@ -45,16 +45,17 @@ mtv_secrets: &mtv_secrets
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
-mtv_management_providers: &mtv_management_providers
+mtv_providers: &mtv_providers
   - name: "{{ mtv_provider_cr_name }}"
     namespace: "{{ mtv_namespace }}"
-    type: "vsphere"
+    type: "vmware"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
     vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
+mtv_management_providers: *mtv_providers
 
 mtv_network_maps: &mtv_network_maps
   - name: "mty-vlan-net-map"
@@ -63,9 +64,32 @@ mtv_network_maps: &mtv_network_maps
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_port_group }}"
+          name: "M-TY-VLAN400"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ty-vlan400"
+          namespace: "default"
+
+      - source:
+          name: "M-TY-VLAN432"
+        destination:
+          type: "multus"
+          name: "m-ty-vlan432"
+          namespace: "default"
+
+      - source:
+          name: "M-TY-VLAN448"
+        destination:
+          type: "multus"
+          name: "m-ty-vlan448"
+          namespace: "default"
+
+      - source:
+          name: "M-TY-VLAN464"
+        destination:
+          type: "multus"
+          name: "m-ty-vlan464"
+          namespace: "default"
 mtv_management_network_maps: *mtv_network_maps
 
 mtv_storage_maps: &mtv_storage_maps
@@ -90,6 +114,7 @@ mtv_plans: &mtv_plans
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
+mtv_management_plans: *mtv_plans
 
 mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
@@ -104,4 +129,9 @@ mtv_migrate_migration_request:
   verify_migrations_complete: true
   vms: "{{ source_vms }}"
   warm: "{{ is_warm }}"
-  cutover: "{{ cutover_at if (is_warm and cutover_at is defined and cutover_at | length > 0) else omit }}"
+  cutover: >-
+    {{
+      cutover_time
+      if (is_warm and cutover_time is defined and cutover_time | trim | length > 0)
+      else (now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') if is_warm else omit)
+    }}

@@ -209,7 +209,6 @@
         - name: Trigger Migration Executions and Monitor Progress
           ansible.builtin.include_role:
             name: infra.openshift_virtualization_migration.mtv_migrate
-          ignore_errors: true
 
   post_tasks:
     # -------------------------------------------------------------------------
