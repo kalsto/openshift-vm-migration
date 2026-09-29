@@ -177,9 +177,9 @@
             name: infra.openshift_virtualization_migration.mtv_management
 
         # -------------------------------------------------------------------------
-        # POST-PROVISIONING: VERIFY PLAN PREFLIGHT INSPECTION FOR CBT
+        # PRE-FLIGHT VALIDATION: FAIL FAST BEFORE MTV_MIGRATE RETRIES
         # -------------------------------------------------------------------------
-        - name: Inspect Provisioned Migration Plan for CBT Preflight Warnings
+        - name: Fetch Provisioned Migration Plan Status
           kubernetes.core.k8s_info:
             host: "{{ openshift_server }}"
             api_key: "{{ openshift_api_key }}"
@@ -189,22 +189,34 @@
             name: "{{ migration_plan_name }}"
             namespace: "{{ mtv_namespace }}"
           register: plan_preflight_info
-          when: is_warm | default(true) | bool
 
-        - name: Abort Playbook if MTV detects missing Changed Block Tracking (CBT)
+        - name: Extract Plan Status and Critical Preflight Conditions
+          ansible.builtin.set_fact:
+            plan_is_ready: >-
+              {{
+                (plan_preflight_info.resources | default([]) | length > 0) and
+                (plan_preflight_info.resources[0].status.conditions | default([])
+                 | selectattr('type', 'defined')
+                 | selectattr('type', 'equalto', 'Ready')
+                 | selectattr('status', 'equalto', 'True') | list | length > 0)
+              }}
+            plan_critical_errors: >-
+              {{
+                plan_preflight_info.resources[0].status.conditions | default([])
+                | selectattr('category', 'defined')
+                | selectattr('category', 'equalto', 'Critical')
+                | map(attribute='message') | list
+                if (plan_preflight_info.resources | default([]) | length > 0)
+                else ['Migration Plan CR was not found on the target cluster.']
+              }}
+
+        - name: Abort Playbook Immediately on Preflight Validation Failures
           ansible.builtin.fail:
-            msg: "WARM MIGRATION ABORTED! MTV Preflight Inspection failed: Changed Block Tracking (CBT) is not enabled on one or more VMs in plan '{{ migration_plan_name }}'. Enable CBT in vSphere or set warm migration to false."
-          when:
-            - is_warm | default(true) | bool
-            - plan_preflight_info.resources is defined
-            - plan_preflight_info.resources | length > 0
-            - >-
-              (plan_preflight_info.resources[0].status.conditions | default([])
-               | selectattr('message', 'defined')
-               | selectattr('message', 'search', 'Changed Block Tracking') | list | length > 0) or
-              (plan_preflight_info.resources[0].status.conditions | default([])
-               | selectattr('message', 'defined')
-               | selectattr('message', 'search', 'CBT') | list | length > 0)
+            msg:
+              - "MIGRATION ABORTED! MTV Plan '{{ migration_plan_name }}' is NOT READY."
+              - "Critical Preflight Errors Detected:"
+              - "{{ plan_critical_errors }}"
+          when: not (plan_is_ready | bool)
 
         - name: Trigger Migration Executions and Monitor Progress
           ansible.builtin.include_role:
