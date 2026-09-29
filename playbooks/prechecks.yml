@@ -1,6 +1,7 @@
 ---
 - name: prechecks
-  hosts: "{{ vms | default('localhost') }}"
+#  hosts: "{{ vms | default('localhost') }}"
+  hosts: "localhost"
   gather_facts: no
 
   environment:
