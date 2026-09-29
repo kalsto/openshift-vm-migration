@@ -7,4 +7,3 @@ collections:
   - name: ansible.utils
   - name: ansible.controller
   - name: awx.awx
-  - name: infra.openshift_virtualization_migration
