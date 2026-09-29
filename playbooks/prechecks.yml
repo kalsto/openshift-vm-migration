@@ -9,6 +9,8 @@
     K8S_AUTH_API_KEY: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
     K8S_AUTH_VERIFY_SSL: "false"
 
+  vars:
+    mtv_tt_debug: true
   vars_files:
     - "../vars/all_vault.yml" 
     - "../vars/{{ mtv_ocp_short | default('tbd') }}.yml"
