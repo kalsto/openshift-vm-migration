@@ -9,7 +9,8 @@ all:
     mock_tokyo:
       hosts:
         m-ty:
-          ansible_host: chidebmockvc01.int.tt.local
+          ansible_host: localhost
+          vsphere_host: 172.17.250.170
           friendly_name: "m-ty"
           mtv_ocp_short: "m-ty"
         secondaryvsphere.int.tt.local:
