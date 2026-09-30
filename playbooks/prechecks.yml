@@ -24,7 +24,7 @@
       when:
         - mtv_tt_debug | default(false)
     - name: "Prechecks | module_defaults"
-      ansible.builtin.module_defaults:
+      module_defaults:
         group/k8s:
           host: "{{ openshift_host }}"
           api_key: "{{ openshift_token }}"
