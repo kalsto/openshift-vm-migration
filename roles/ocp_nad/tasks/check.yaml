@@ -8,6 +8,9 @@
     api_version: k8s.cni.cncf.io/v1
     kind: NetworkAttachmentDefinition
     namespace: "default"
+    api_key: "{{ openshift_token }}"
+    host: "{{ openshift_host }}"
+    validate_certs: false
   register: ocp_existing_nads
 
 - name: "{{ role_name }} | set fact for expected and existing nads"
