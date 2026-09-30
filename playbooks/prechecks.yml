@@ -15,8 +15,6 @@
       api_key: "{{ openshift_token }}"
       validate_certs: false
 
-  vars:
-    mtv_tt_debug: true
   vars_files:
     - "../vars/all.yml"
     - "../vars/{{ vms }}.yml"
