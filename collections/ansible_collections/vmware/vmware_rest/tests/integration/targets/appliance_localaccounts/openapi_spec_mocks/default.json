@@ -1,0 +1,86 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vCenter Local_Accounts Mock",
+    "version": "9.1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{host}/api",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/appliance/local-accounts": {
+      "get": {
+        "operationId": "Appliance.LocalAccounts_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "example": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/appliance/local-accounts/{username}": {
+      "get": {
+        "operationId": "Appliance.LocalAccounts_get",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "fullname": "root user",
+                  "email": "root@localhost",
+                  "roles": [
+                    "superAdmin"
+                  ],
+                  "enabled": true,
+                  "has_password": true,
+                  "min_days_between_password_change": 0,
+                  "max_days_between_password_change": 90,
+                  "warn_days_before_password_expiration": 7
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

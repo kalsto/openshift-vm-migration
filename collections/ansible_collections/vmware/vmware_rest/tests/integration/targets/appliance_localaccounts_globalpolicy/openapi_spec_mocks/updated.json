@@ -1,0 +1,76 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vCenter Global_Policy Mock",
+    "version": "9.1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{host}/api",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/appliance/local-accounts/global-policy": {
+      "get": {
+        "operationId": "Appliance.LocalAccounts.GlobalPolicy_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "max_days": 60,
+                  "min_days": 2,
+                  "warn_days": 14,
+                  "prior_password_remember_count": 5,
+                  "failed_attempt_count_before_account_lockout": 3,
+                  "length_of_lockout_period_in_seconds": 1800,
+                  "fail_interval_between_attempts": 900,
+                  "minimum_length": 12,
+                  "minimum_uppercase_char_count": 1,
+                  "minimum_lowercase_char_count": 1,
+                  "minimum_numerics_char_count": 1,
+                  "minimum_special_char_count": 1,
+                  "managed_at_fleet": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "Appliance.LocalAccounts.GlobalPolicy_update",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "ok"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

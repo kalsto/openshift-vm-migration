@@ -1,0 +1,16 @@
+---
+- name: Initialise new keys dictionary
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_new_keys: {}
+
+- name: Generate or assign keys for each component
+  ansible.builtin.include_tasks: generate_single_key.yml
+  vars:
+    _component: "{{ item }}"
+    _component_config: "{{ __aap_secret_rotate_components[item] }}"
+  loop: "{{ aap_secret_rotate_components }}"
+
+- name: Display key generation summary
+  ansible.builtin.debug:
+    msg: "Keys prepared for: {{ __aap_secret_rotate_new_keys.keys() | list | join(', ') }}"
+...

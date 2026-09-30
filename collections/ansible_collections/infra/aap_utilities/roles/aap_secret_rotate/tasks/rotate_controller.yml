@@ -1,0 +1,70 @@
+---
+# Rotation workflow for Automation Controller.
+# awx-manage regenerate_secret_key --use-custom-key
+# Env: TOWER_SECRET_KEY=<new_key>
+#
+# Flow:
+# 1. Stop all containers except the exec container
+# 2. Run the rotation command (re-encrypts DB data)
+# 3. Update the podman secret and write the new key into all containers
+# 4. Restart containers so processes load the new key from disk
+
+- name: Set component config for Controller
+  ansible.builtin.set_fact:
+    _component: "controller"
+    _component_config: "{{ __aap_secret_rotate_components.controller }}"
+
+- name: Stop component for Controller (podman only)
+  ansible.builtin.include_tasks: "podman/stop_component.yml"
+  vars:
+    _component: "controller"
+  when: aap_secret_rotate_deployment_type == 'podman'
+
+- name: Start exec container for rotation of Controller (podman)
+  ansible.builtin.command:
+    cmd: "podman start {{ __aap_secret_rotate_components.controller.podman_container }}"
+  changed_when: true
+  when:
+    - aap_secret_rotate_deployment_type == 'podman'
+    - not aap_secret_rotate_dry_run
+
+- name: Wait for exec container to be ready for Controller (podman)
+  ansible.builtin.command:
+    cmd: "podman wait --condition=running {{ __aap_secret_rotate_components.controller.podman_container }}"
+  changed_when: false
+  retries: 6
+  delay: 5
+  register: __aap_secret_rotate_wait_exec
+  until: __aap_secret_rotate_wait_exec.rc == 0
+  when:
+    - aap_secret_rotate_deployment_type == 'podman'
+    - not aap_secret_rotate_dry_run
+
+- name: Run rotation command for Controller
+  ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/exec_command.yml"
+  vars:
+    _component: "controller"
+    _component_config: "{{ __aap_secret_rotate_components.controller }}"
+    _exec_env:
+      TOWER_SECRET_KEY: "{{ __aap_secret_rotate_new_keys.controller }}"
+    _exec_cmd: "awx-manage regenerate_secret_key --use-custom-key"
+
+- name: Write new secret for Controller
+  ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/write_secret.yml"
+  vars:
+    _component: "controller"
+    _component_config: "{{ __aap_secret_rotate_components.controller }}"
+    _secret_value: "{{ __aap_secret_rotate_new_keys.controller }}"
+
+- name: Restart component for Controller (podman only)
+  ansible.builtin.include_tasks: "podman/restart_component.yml"
+  vars:
+    _component: "controller"
+  when: aap_secret_rotate_deployment_type == 'podman'
+
+- name: Rollout restart for Controller (operator only)
+  ansible.builtin.include_tasks: "operator/rollout_restart.yml"
+  vars:
+    _component: "controller"
+  when: aap_secret_rotate_deployment_type == 'operator'
+...

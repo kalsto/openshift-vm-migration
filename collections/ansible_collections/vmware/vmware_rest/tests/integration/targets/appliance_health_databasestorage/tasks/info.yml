@@ -1,0 +1,61 @@
+---
+# ============================================================
+# APPLIANCE_HEALTH_DATABASESTORAGE_INFO TESTS
+# ============================================================
+
+# Test 1: Get health status when the subsystem is healthy (green)
+- name: Get DatabaseStorage health status (healthy)
+  vmware.vmware_rest.appliance_health_databasestorage_info: {}
+  register: databasestorage_health_green
+
+- name: Assert healthy status is reported
+  ansible.builtin.assert:
+    that:
+      - databasestorage_health_green.value is defined
+      - databasestorage_health_green.value == 'green'
+      - databasestorage_health_green.info is defined
+      - databasestorage_health_green.info | length == 1
+      - databasestorage_health_green.info[0] == 'green'
+      - not databasestorage_health_green.changed
+
+# Test 2: Get health status when the subsystem is degraded (orange)
+- name: Reset before degraded health expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for degraded health
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/degraded.json"
+      operationsAndResponses:
+        Appliance.Health.DatabaseStorage_get: "200"
+
+- name: Get DatabaseStorage health status (degraded)
+  vmware.vmware_rest.appliance_health_databasestorage_info: {}
+  register: databasestorage_health_orange
+
+- name: Assert degraded status is reported
+  ansible.builtin.assert:
+    that:
+      - databasestorage_health_orange.value == 'orange'
+      - databasestorage_health_orange.info | length == 1
+      - databasestorage_health_orange.info[0] == 'orange'
+      - not databasestorage_health_orange.changed
+
+# Test 3: Check mode returns the same read-only result without error
+- name: Get DatabaseStorage health status (check mode)
+  vmware.vmware_rest.appliance_health_databasestorage_info: {}
+  check_mode: true
+  register: databasestorage_health_check
+
+- name: Assert check mode reports no change for read-only info module
+  ansible.builtin.assert:
+    that:
+      - databasestorage_health_check.value == 'orange'
+      - not databasestorage_health_check.changed

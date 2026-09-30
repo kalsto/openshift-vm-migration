@@ -1,0 +1,72 @@
+---
+- name: Test
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+
+    - name: "Test setup: Create VM guest {{ vm }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vm_cluster }}"
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        state: present
+        name: "{{ vm }}"
+        disk: "{{ vm_disk }}"
+        guest_id: "{{ vm_guest_id }}"
+        hardware: "{{ vm_hardware }}"
+
+    - name: "Test setup: Create content library {{ library }}"
+      community.vmware.vmware_content_library_manager:
+        datastore_name: "{{ datastore }}"
+        library_name: "{{ library }}"
+        state: present
+        library_type: local
+
+    - name: Create template from vm in content library
+      vmware.vmware.content_template:
+        template: "{{ template_name }}"
+        library: "{{ library }}"
+        vm_name: "{{ vm }}"
+        host: "{{ template_host }}"
+      register: __res
+
+    - name: Assert values
+      ansible.builtin.assert:
+        that:
+          - __res.changed == True
+          - __res.template_info.msg == "Template '" + template_name + "'."
+
+    - name: Delete template from content library
+      vmware.vmware.content_template:
+        template: "{{ template_name }}"
+        library: "{{ library }}"
+        host: "{{ template_host }}"
+        state: absent
+
+    - name: Check for deleted template
+      vmware.vmware.content_library_item_info:
+        library_name: "{{ library }}"
+        library_item_name: "{{ template_name }}"
+      register: __res
+
+    - name: Verify Template Was Deleted
+      ansible.builtin.assert:
+        that: (__res.library_item_info | length) == 0
+
+  always:
+    - name: "Test teardown: Destroy VM guest {{ vm }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vm_cluster }}"
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        state: absent
+        force: true
+        name: "{{ vm }}"
+
+    - name: "Test teardown: Remove content library {{ library }}"
+      community.vmware.vmware_content_library_manager:
+        library_name: "{{ library }}"
+        state: absent

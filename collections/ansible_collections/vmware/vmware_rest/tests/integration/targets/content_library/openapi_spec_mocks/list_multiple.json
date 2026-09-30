@@ -1,0 +1,86 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vCenter Library Mock",
+    "version": "9.1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{host}/api",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/content/library": {
+      "get": {
+        "operationId": "Content.Library_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "example": [
+                  "library-1001",
+                  "library-1002"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/content/library/{library_id}": {
+      "get": {
+        "operationId": "Content.Library_get",
+        "parameters": [
+          {
+            "name": "library_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "id": "library-1001",
+                  "name": "my_library",
+                  "description": "Automated content library",
+                  "type": "LOCAL",
+                  "creation_time": "2026-01-15T10:22:00.940Z",
+                  "last_modified_time": "2026-01-15T10:22:00.940Z",
+                  "version": "1"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

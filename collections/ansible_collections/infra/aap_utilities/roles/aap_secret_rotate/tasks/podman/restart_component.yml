@@ -1,0 +1,48 @@
+---
+# Restarts all containers for a given component by stopping then
+# starting them. This forces each process to reload its settings
+# (including the secret key file) from disk.
+#
+# Required vars: _component
+
+- name: Stop podman containers for {{ _component }}
+  ansible.builtin.command:
+    cmd: "podman stop {{ item }}"
+  loop: "{{ __aap_secret_rotate_podman_containers[_component] }}"
+  register: __aap_secret_rotate_restart_stop
+  failed_when:
+    - __aap_secret_rotate_restart_stop.rc != 0
+    - "'no such container' not in (__aap_secret_rotate_restart_stop.stderr | default('') | lower)"
+  changed_when: __aap_secret_rotate_restart_stop.rc == 0
+  when: not aap_secret_rotate_dry_run
+
+- name: Start podman containers for {{ _component }}
+  ansible.builtin.command:
+    cmd: "podman start {{ item }}"
+  loop: "{{ __aap_secret_rotate_podman_containers[_component] }}"
+  register: __aap_secret_rotate_restart_start
+  failed_when:
+    - __aap_secret_rotate_restart_start.rc != 0
+    - "'no such container' not in (__aap_secret_rotate_restart_start.stderr | default('') | lower)"
+  changed_when: __aap_secret_rotate_restart_start.rc == 0
+  when: not aap_secret_rotate_dry_run
+
+- name: Wait for containers to be running for {{ _component }}
+  ansible.builtin.command:
+    cmd: "podman wait --condition=running {{ item }}"
+  loop: "{{ __aap_secret_rotate_podman_containers[_component] }}"
+  changed_when: false
+  register: __aap_secret_rotate_restart_wait
+  failed_when:
+    - __aap_secret_rotate_restart_wait.rc != 0
+    - "'no such container' not in (__aap_secret_rotate_restart_wait.stderr | default('') | lower)"
+  retries: 6
+  delay: 10
+  until: __aap_secret_rotate_restart_wait.rc == 0 or 'no such container' in (__aap_secret_rotate_restart_wait.stderr | default('') | lower)
+  when: not aap_secret_rotate_dry_run
+
+- name: Dry run - would restart containers for {{ _component }}
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would restart: {{ __aap_secret_rotate_podman_containers[_component] | join(', ') }}"
+  when: aap_secret_rotate_dry_run
+...

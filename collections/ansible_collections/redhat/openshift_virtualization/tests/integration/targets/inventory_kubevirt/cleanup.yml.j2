@@ -1,0 +1,26 @@
+---
+- name: Delete VMs
+  connection: local
+  gather_facts: false
+  hosts: localhost
+  tasks:
+    - name: Delete a VM
+      redhat.openshift_virtualization.kubevirt_vm:
+        state: absent
+        name: testvm1
+        namespace: {{ NAMESPACE }}
+        wait: true
+
+    - name: Delete another VM
+      redhat.openshift_virtualization.kubevirt_vm:
+        state: absent
+        name: testvm2
+        namespace: {{ NAMESPACE }}
+        wait: true
+
+    - name: Delete the stopped VM
+      redhat.openshift_virtualization.kubevirt_vm:
+        state: absent
+        name: testvm-stopped
+        namespace: {{ NAMESPACE }}
+        wait: true

@@ -1,0 +1,16 @@
+---
+- name: Test
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Gather appliance info
+      vmware.vmware.appliance_info:
+        properties:
+          - summary
+      register: __res
+
+    - name: Assert values
+      ansible.builtin.assert:
+        that:
+          - __res.changed == False
+          - __res.appliance.summary.hostname in [vcenter_hostname, "hostname.example.com"]

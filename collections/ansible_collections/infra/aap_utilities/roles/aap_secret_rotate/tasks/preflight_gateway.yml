@@ -1,0 +1,106 @@
+---
+# Pre-rotation verification for Automation Gateway.
+# Uses the --dry-run flag of rotate_secret_key to check all encrypted fields
+# are decryptable with the current key.
+#
+# Known issue: AuthenticatorUser.extra_data records may fail decryption due to
+# an upstream bug (jsonb string wrapper preventing $encrypted$ prefix detection).
+# These are handled during rotation by DELETEing the records, so we warn but
+# do not fail the preflight for AuthenticatorUser-only failures.
+
+- name: Check if Gateway has rotate_secret_key command
+  ansible.builtin.command:
+    cmd: >-
+      {% if aap_secret_rotate_deployment_type == 'podman' %}
+      podman exec {{ __aap_secret_rotate_components.gateway.podman_container }}
+      {% else %}
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      exec deploy/{{ __aap_secret_rotate_k8s_exec.gateway.deployment }}
+      -c {{ __aap_secret_rotate_k8s_exec.gateway.container }}
+      --
+      {% endif %}
+      aap-gateway-manage help rotate_secret_key
+  register: __aap_secret_rotate_preflight_gw_cmd_check
+  changed_when: false
+  failed_when: false
+
+- name: Set Gateway preflight availability flag
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_gw_has_rotate: "{{ __aap_secret_rotate_preflight_gw_cmd_check.rc | default(1) == 0 }}"
+
+- name: Skip Gateway preflight when rotate_secret_key is unavailable
+  ansible.builtin.debug:
+    msg: >-
+      Gateway preflight: SKIPPED (rotate_secret_key command not available in this build)
+  when: not (__aap_secret_rotate_gw_has_rotate | bool)
+
+- name: Run Gateway preflight dry-run
+  when: __aap_secret_rotate_gw_has_rotate | bool
+  block:
+    - name: Execute Gateway preflight dry-run
+      ansible.builtin.command:
+        cmd: >-
+          {% if aap_secret_rotate_deployment_type == 'podman' %}
+          podman exec {{ __aap_secret_rotate_components.gateway.podman_container }}
+          {% else %}
+          {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+          exec deploy/{{ __aap_secret_rotate_k8s_exec.gateway.deployment }}
+          -c {{ __aap_secret_rotate_k8s_exec.gateway.container }}
+          --
+          {% endif %}
+          aap-gateway-manage rotate_secret_key --dry-run
+      register: __aap_secret_rotate_preflight_gateway_result
+      changed_when: false
+      failed_when: false
+
+    - name: Evaluate Gateway preflight result
+      ansible.builtin.set_fact:
+        __aap_secret_rotate_preflight_gateway_cmd_failed: >-
+          {{ (__aap_secret_rotate_preflight_gateway_result.rc | default(0)) != 0 }}
+        __aap_secret_rotate_preflight_gateway_has_decrypt_errors: >-
+          {{ 'could not be decrypted' in (__aap_secret_rotate_preflight_gateway_result.stdout | default(''))
+             or 'could not be decrypted' in (__aap_secret_rotate_preflight_gateway_result.stderr | default(''))
+             or 'DecryptionError' in (__aap_secret_rotate_preflight_gateway_result.stderr | default('')) }}
+        __aap_secret_rotate_preflight_gateway_au_only: >-
+          {{ ('AuthenticatorUser' in (__aap_secret_rotate_preflight_gateway_result.stderr | default(''))
+              or 'authenticatoruser' in (__aap_secret_rotate_preflight_gateway_result.stderr | default(''))
+              or 'AuthenticatorUser' in (__aap_secret_rotate_preflight_gateway_result.stdout | default(''))
+              or 'authenticatoruser' in (__aap_secret_rotate_preflight_gateway_result.stdout | default('')))
+             and 'ServiceKey' not in (__aap_secret_rotate_preflight_gateway_result.stderr | default(''))
+             and 'Authenticator.' not in (__aap_secret_rotate_preflight_gateway_result.stderr | default(''))
+             and 'Preference' not in (__aap_secret_rotate_preflight_gateway_result.stderr | default('')) }}
+
+    - name: Determine Gateway preflight pass/fail
+      ansible.builtin.set_fact:
+        __aap_secret_rotate_preflight_gateway_ok: >-
+          {{ (not (__aap_secret_rotate_preflight_gateway_cmd_failed | bool)
+              and not (__aap_secret_rotate_preflight_gateway_has_decrypt_errors | bool))
+             or (__aap_secret_rotate_preflight_gateway_au_only | bool) }}
+
+    - name: Display Gateway preflight result
+      ansible.builtin.debug:
+        msg: >-
+          Gateway preflight: {{ 'PASSED' if (__aap_secret_rotate_preflight_gateway_ok | bool) else 'FAILED' }}
+          {{ '(AuthenticatorUser warnings present, handled by rotation workflow)'
+             if (__aap_secret_rotate_preflight_gateway_au_only | bool
+                 and (__aap_secret_rotate_preflight_gateway_has_decrypt_errors | bool))
+             else '' }}
+
+    - name: Display Gateway preflight warnings for AuthenticatorUser
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: Gateway AuthenticatorUser.extra_data records have decryption issues.
+          This is a known upstream bug and will be handled automatically during rotation
+          (records are DELETEd before rotate_secret_key runs). No action required.
+      when:
+        - __aap_secret_rotate_preflight_gateway_au_only | bool
+        - __aap_secret_rotate_preflight_gateway_has_decrypt_errors | bool
+
+    - name: Display Gateway preflight errors
+      ansible.builtin.debug:
+        msg: |-
+          Gateway has encrypted fields that cannot be decrypted with the current key:
+          stdout: {{ __aap_secret_rotate_preflight_gateway_result.stdout | default('') }}
+          stderr: {{ __aap_secret_rotate_preflight_gateway_result.stderr | default('') }}
+      when: not (__aap_secret_rotate_preflight_gateway_ok | bool)
+...

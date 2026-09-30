@@ -1,0 +1,137 @@
+---
+# ============================================================
+# UPDATE FLOPPY DRIVE TESTS
+# ============================================================
+
+# Test 1: Initial update
+- name: Reset before update expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for update
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/created.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+        Vcenter.Vm.Hardware.Floppy_update: "204"
+
+- name: Update a floppy drive
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    allow_guest_control: false
+    start_connected: false
+    state: present
+  register: update_result
+
+- name: Assert update success
+  ansible.builtin.assert:
+    that:
+      - update_result.changed
+      - update_result.id == 'floppy-1001'
+
+# Test 2: Idempotent update
+- name: Reset before updated state expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for updated state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/updated.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+        Vcenter.Vm.Hardware.Floppy_list: "200"
+
+- name: Update floppy drive again (idempotent)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    allow_guest_control: false
+    start_connected: false
+    state: present
+  register: update_again
+
+- name: Assert idempotent
+  ansible.builtin.assert:
+    that:
+      - not update_again.changed
+      - update_again.id == 'floppy-1001'
+
+# Test 3: Check mode when update would occur
+- name: Reset before check mode update expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec for original state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/created.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Update floppy drive in check mode (when would change)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    allow_guest_control: false
+    state: present
+  check_mode: true
+  register: update_check
+
+- name: Assert check mode reports change when updating
+  ansible.builtin.assert:
+    that:
+      - update_check.changed
+
+# Test 4: Check mode when no update needed
+- name: Reset before idempotent check mode update expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec for updated state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/updated.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Update floppy drive in check mode (when no change)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    allow_guest_control: false
+    start_connected: false
+    state: present
+  check_mode: true
+  register: update_check_idem
+
+- name: Assert check mode reports no change when already updated
+  ansible.builtin.assert:
+    that:
+      - not update_check_idem.changed

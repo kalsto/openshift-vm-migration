@@ -1,0 +1,96 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "vCenter Monitoring Mock",
+        "version": "9.1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://{host}/api",
+            "variables": {
+                "host": {
+                    "default": "localhost"
+                }
+            }
+        }
+    ],
+    "paths": {
+        "/appliance/monitoring": {
+            "get": {
+                "operationId": "Appliance.Monitoring_list",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                },
+                                "example": [
+                                    {
+                                        "id": "cpu.util",
+                                        "name": "CPU utilization",
+                                        "units": "%",
+                                        "category": "cpu",
+                                        "instance": "",
+                                        "description": "com.vmware.applmgmt.mon.descr.cpu.util"
+                                    },
+                                    {
+                                        "id": "mem.util",
+                                        "name": "Memory utilization",
+                                        "units": "KB",
+                                        "category": "memory",
+                                        "instance": "",
+                                        "description": "com.vmware.applmgmt.mon.descr.mem.util"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/appliance/monitoring/{stat_id}": {
+            "get": {
+                "operationId": "Appliance.Monitoring_get",
+                "parameters": [
+                    {
+                        "name": "stat_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                },
+                                "example": {
+                                    "id": "cpu.util",
+                                    "name": "CPU utilization",
+                                    "units": "%",
+                                    "category": "cpu",
+                                    "instance": "",
+                                    "description": "com.vmware.applmgmt.mon.descr.cpu.util"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not found"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {}
+    }
+}

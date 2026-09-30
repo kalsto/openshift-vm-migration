@@ -1,0 +1,61 @@
+---
+# ============================================================
+# APPLIANCE_HEALTH_SWAP_INFO TESTS
+# ============================================================
+
+# Test 1: Get health status when the subsystem is healthy (green)
+- name: Get Swap health status (healthy)
+  vmware.vmware_rest.appliance_health_swap_info: {}
+  register: swap_health_green
+
+- name: Assert healthy status is reported
+  ansible.builtin.assert:
+    that:
+      - swap_health_green.value is defined
+      - swap_health_green.value == 'green'
+      - swap_health_green.info is defined
+      - swap_health_green.info | length == 1
+      - swap_health_green.info[0] == 'green'
+      - not swap_health_green.changed
+
+# Test 2: Get health status when the subsystem is degraded (orange)
+- name: Reset before degraded health expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for degraded health
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/degraded.json"
+      operationsAndResponses:
+        Appliance.Health.Swap_get: "200"
+
+- name: Get Swap health status (degraded)
+  vmware.vmware_rest.appliance_health_swap_info: {}
+  register: swap_health_orange
+
+- name: Assert degraded status is reported
+  ansible.builtin.assert:
+    that:
+      - swap_health_orange.value == 'orange'
+      - swap_health_orange.info | length == 1
+      - swap_health_orange.info[0] == 'orange'
+      - not swap_health_orange.changed
+
+# Test 3: Check mode returns the same read-only result without error
+- name: Get Swap health status (check mode)
+  vmware.vmware_rest.appliance_health_swap_info: {}
+  check_mode: true
+  register: swap_health_check
+
+- name: Assert check mode reports no change for read-only info module
+  ansible.builtin.assert:
+    that:
+      - swap_health_check.value == 'orange'
+      - not swap_health_check.changed

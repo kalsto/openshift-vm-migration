@@ -1,0 +1,44 @@
+---
+# Post-rotation health verification.
+# Checks that the platform is reachable after key rotation.
+
+- name: Verify platform health (podman)
+  when: aap_secret_rotate_deployment_type == 'podman'
+  block:
+    - name: Wait for Gateway to respond
+      ansible.builtin.uri:
+        url: "https://localhost/api/gateway/v1/ping/"
+        validate_certs: false
+        status_code: [200]
+      register: _health_check
+      retries: 30
+      delay: 10
+      until: _health_check.status == 200
+
+    - name: Platform is healthy
+      ansible.builtin.debug:
+        msg: "Gateway API responding: {{ _health_check.json | default('OK') }}"
+
+  rescue:
+    - name: Health check failed (non-fatal)
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: Gateway health check did not succeed within timeout.
+          The platform may still be starting. Check service status manually.
+
+- name: Verify platform health (operator)
+  when: aap_secret_rotate_deployment_type == 'operator'
+  block:
+    - name: Check AAP CR status
+      kubernetes.core.k8s_info:
+        api_version: aap.ansible.com/v1alpha1
+        kind: AnsibleAutomationPlatform
+        name: "{{ aap_secret_rotate_cr_name }}"
+        namespace: "{{ aap_secret_rotate_namespace }}"
+      register: _aap_cr_status
+
+    - name: Display CR conditions
+      ansible.builtin.debug:
+        msg: "AAP CR status: {{ _aap_cr_status.resources[0].status.conditions | default('No conditions yet') }}"
+      when: _aap_cr_status.resources | length > 0
+...

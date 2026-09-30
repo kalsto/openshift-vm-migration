@@ -1,0 +1,83 @@
+---
+# Executes a management command inside a running pod via kubectl exec.
+# Required vars: _component, _component_config, _exec_env (dict), _exec_cmd (string)
+#
+# Uses exec on a running pod rather than creating a Job, because the
+# pod already has all the necessary volume mounts, environment variables,
+# and database connectivity.
+#
+# Discovers pods by reading the Deployment's selector labels to handle
+# components that use non-standard label conventions (e.g. Hub).
+
+- name: Get deployment selector for {{ _component }}
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ __aap_secret_rotate_k8s_exec[_component].deployment }}"
+    namespace: "{{ aap_secret_rotate_namespace }}"
+  register: __aap_secret_rotate_deploy_info
+  when: not aap_secret_rotate_dry_run
+
+- name: Build pod selector for {{ _component }}
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_pod_selector: >-
+      {{ __aap_secret_rotate_deploy_info.resources[0].spec.selector.matchLabels
+         | dict2items | map(attribute='key') | zip(
+           __aap_secret_rotate_deploy_info.resources[0].spec.selector.matchLabels
+           | dict2items | map(attribute='value')
+         ) | map('join', '=') | join(',') }}
+  when: not aap_secret_rotate_dry_run
+
+- name: Wait for a ready pod for {{ _component }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      wait pod -l {{ __aap_secret_rotate_pod_selector }}
+      --for=condition=Ready --timeout=300s
+  register: __aap_secret_rotate_pod_wait
+  changed_when: false
+  when: not aap_secret_rotate_dry_run
+
+- name: Find a running pod for {{ _component }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      get pods -l {{ __aap_secret_rotate_pod_selector }}
+      --field-selector=status.phase=Running
+      -o jsonpath={.items[0].metadata.name}
+  register: __aap_secret_rotate_exec_pod
+  changed_when: false
+  failed_when: __aap_secret_rotate_exec_pod.rc != 0 or __aap_secret_rotate_exec_pod.stdout | length == 0
+  when: not aap_secret_rotate_dry_run
+
+- name: Build exec command with env overrides for {{ _component }}
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_full_exec_cmd: >-
+      {% if _exec_env | default({}) | length > 0 %}env
+      {% for key, value in _exec_env.items() %}{{ key }}={{ value }} {% endfor %}{% endif %}{{ _exec_cmd }}
+  no_log: true
+
+- name: Run management command in pod for {{ _component }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      exec {{ __aap_secret_rotate_exec_pod.stdout }}
+      -c {{ __aap_secret_rotate_k8s_exec[_component].container }}
+      -- bash -c {{ __aap_secret_rotate_full_exec_cmd | quote }}
+  register: __aap_secret_rotate_exec_result
+  changed_when: not aap_secret_rotate_dry_run
+  no_log: true
+  when: not aap_secret_rotate_dry_run
+
+- name: Display command output for {{ _component }}
+  ansible.builtin.debug:
+    msg: "{{ __aap_secret_rotate_exec_result.stdout_lines | default([]) }}"
+  when:
+    - not aap_secret_rotate_dry_run
+    - __aap_secret_rotate_exec_result.stdout_lines | default([]) | length > 0
+
+- name: Dry run - would exec rotation command for {{ _component }}
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would exec '{{ _exec_cmd }}' in pod for deployment {{ __aap_secret_rotate_k8s_exec[_component].deployment }}"
+  when: aap_secret_rotate_dry_run
+...

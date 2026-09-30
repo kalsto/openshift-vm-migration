@@ -1,0 +1,128 @@
+---
+# ============================================================
+# DELETE FLOPPY DRIVE TESTS
+# ============================================================
+
+# Test 1: Delete by MOID
+- name: Reset before delete expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for delete
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/created.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_delete: "204"
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Delete floppy drive by MOID
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    state: absent
+  register: delete_result
+
+- name: Assert deletion success
+  ansible.builtin.assert:
+    that:
+      - delete_result.changed
+      - delete_result.id == 'floppy-1001'
+
+# Test 2: Idempotent deletion
+- name: Reset before empty state expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for empty state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/default.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "404"
+
+- name: Delete floppy drive again (idempotent)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    state: absent
+  register: delete_again
+
+- name: Assert idempotent delete
+  ansible.builtin.assert:
+    that:
+      - not delete_again.changed
+
+# Test 3: Check mode when resource exists
+- name: Reset before check mode delete expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec for resource exists
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/created.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Delete floppy drive in check mode (when exists)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    state: absent
+  check_mode: true
+  register: delete_check
+
+- name: Assert check mode reports change when deleting
+  ansible.builtin.assert:
+    that:
+      - delete_check.changed
+
+# Test 4: Check mode when resource doesn't exist
+- name: Reset before idempotent check mode delete expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec for empty state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/default.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "404"
+
+- name: Delete non-existent floppy drive in check mode (idempotent)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    state: absent
+  check_mode: true
+  register: delete_check_idem
+
+- name: Assert check mode reports no change when already deleted
+  ansible.builtin.assert:
+    that:
+      - not delete_check_idem.changed

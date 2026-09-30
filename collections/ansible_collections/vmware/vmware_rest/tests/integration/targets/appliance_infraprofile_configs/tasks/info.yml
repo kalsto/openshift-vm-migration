@@ -1,0 +1,49 @@
+---
+# ============================================================
+# APPLIANCE INFRAPROFILE CONFIGS INFO TESTS
+# ============================================================
+
+# Test 1: List registered profiles when none are returned
+- name: List infraprofiles (empty)
+  vmware.vmware_rest.appliance_infraprofile_configs_info: {}
+  register: infraprofiles_empty
+
+- name: Assert empty infraprofile list
+  ansible.builtin.assert:
+    that:
+      - infraprofiles_empty.value is defined
+      - infraprofiles_empty.value == {}
+      - infraprofiles_empty.info is defined
+      - infraprofiles_empty.info | length == 0
+
+# Test 2: List registered profiles when multiple exist
+- name: Reset before list_multiple expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for multiple profiles
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/list_multiple.json"
+      operationsAndResponses:
+        Appliance.Infraprofile.Configs_get: "200"
+
+- name: List infraprofiles (multiple)
+  vmware.vmware_rest.appliance_infraprofile_configs_info: {}
+  register: infraprofiles_multiple
+
+- name: Assert multiple infraprofiles are returned
+  ansible.builtin.assert:
+    that:
+      - infraprofiles_multiple.value is defined
+      - infraprofiles_multiple.value | length == 2
+      - infraprofiles_multiple.value[0].name == 'ApplianceManagement'
+      - infraprofiles_multiple.value[1].name == 'ApplianceNetwork'
+      - infraprofiles_multiple.info is defined
+      - infraprofiles_multiple.info | length == 2

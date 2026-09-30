@@ -1,0 +1,175 @@
+---
+# ============================================================
+# APPLIANCE INFRAPROFILE CONFIGS ACTION TESTS
+# ============================================================
+
+# Test 1: Export action
+- name: Reset before export action expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Add export POST expectation
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/expectation"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      - httpRequest:
+          method: POST
+          path: "/api/appliance/infraprofile/configs"
+          queryStringParameters:
+            action:
+              - export
+        httpResponse:
+          statusCode: 200
+          headers:
+            Content-Type:
+              - "application/json"
+          body: '{"config": "exported-profile-data"}'
+
+- name: Export infrastructure profiles
+  vmware.vmware_rest.appliance_infraprofile_configs:
+    state: export
+    profiles:
+      - ApplianceManagement
+    description: Backup taken before upgrade
+  register: export_result
+
+- name: Assert export action succeeded
+  ansible.builtin.assert:
+    that:
+      - export_result.changed
+      - export_result.value is defined
+      - export_result.value.config == 'exported-profile-data'
+
+# Test 2: Export in check mode
+- name: Reset before export check mode expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Export infrastructure profiles in check mode
+  vmware.vmware_rest.appliance_infraprofile_configs:
+    state: export
+    profiles:
+      - ApplianceManagement
+  check_mode: true
+  register: export_check
+
+- name: Assert export check mode reports change without calling the API
+  ansible.builtin.assert:
+    that:
+      - export_check.changed
+      - export_check.value == {}
+
+# Test 3: Validate action
+- name: Reset before validate action expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Add validate POST expectation
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/expectation"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      - httpRequest:
+          method: POST
+          path: "/api/appliance/infraprofile/configs"
+          queryStringParameters:
+            action:
+              - validate
+            vmw-task:
+              - "true"
+        httpResponse:
+          statusCode: 200
+          headers:
+            Content-Type:
+              - "application/json"
+          body: '{"status": "VALID"}'
+
+- name: Validate a configuration specification
+  vmware.vmware_rest.appliance_infraprofile_configs:
+    state: validate
+    config_spec: '{"profile": "data"}'
+  register: validate_result
+
+- name: Assert validate action succeeded
+  ansible.builtin.assert:
+    that:
+      - validate_result.changed
+      - validate_result.value is defined
+      - validate_result.value.status == 'VALID'
+
+# Test 4: Import action
+- name: Reset before import action expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Add import POST expectation
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/expectation"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      - httpRequest:
+          method: POST
+          path: "/api/appliance/infraprofile/configs"
+          queryStringParameters:
+            action:
+              - import
+            vmw-task:
+              - "true"
+        httpResponse:
+          statusCode: 200
+          headers:
+            Content-Type:
+              - "application/json"
+          body: '{"status": "SUCCEEDED"}'
+
+- name: Import a configuration specification
+  vmware.vmware_rest.appliance_infraprofile_configs:
+    state: import
+    config_spec: '{"profile": "data"}'
+    profile_spec:
+      description: Restore appliance configuration
+      profiles:
+        - ApplianceManagement
+  register: import_result
+
+- name: Assert import action succeeded
+  ansible.builtin.assert:
+    that:
+      - import_result.changed
+      - import_result.value is defined
+      - import_result.value.status == 'SUCCEEDED'
+
+# Test 5: Import in check mode
+- name: Reset before import check mode expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Import a configuration specification in check mode
+  vmware.vmware_rest.appliance_infraprofile_configs:
+    state: import
+    config_spec: '{"profile": "data"}'
+  check_mode: true
+  register: import_check
+
+- name: Assert import check mode reports change without calling the API
+  ansible.builtin.assert:
+    that:
+      - import_check.changed
+      - import_check.value == {}

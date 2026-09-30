@@ -1,0 +1,136 @@
+---
+# ============================================================
+# CREATE FLOPPY DRIVE TESTS
+# ============================================================
+
+# Test 1: Initial creation (no floppy MOID - create new)
+- name: Reset before create expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for create
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/default.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_create: "200"
+        Vcenter.Vm.Hardware.Floppy_list: "200"
+
+- name: Create a floppy drive
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    backing:
+      type: IMAGE_FILE
+      image_file: "[datastore1] floppies/boot.flp"
+    start_connected: true
+    allow_guest_control: true
+    state: present
+  register: create_result
+
+- name: Assert creation success
+  ansible.builtin.assert:
+    that:
+      - create_result.changed
+      - create_result.id == 'floppy-1001'
+
+# Test 2: Idempotent creation (resource now exists, provide MOID)
+- name: Reset before created state expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for created state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/created.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Create floppy drive again with MOID (idempotent)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    backing:
+      type: IMAGE_FILE
+      image_file: "[datastore1] floppies/boot.flp"
+    start_connected: true
+    allow_guest_control: true
+    state: present
+  register: create_again
+
+- name: Assert idempotent
+  ansible.builtin.assert:
+    that:
+      - not create_again.changed
+      - create_again.id == 'floppy-1001'
+
+# Test 3: Check mode when resource doesn't exist (no MOID)
+- name: Reset before check mode create expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Create floppy drive in check mode (when doesn't exist)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    backing:
+      type: IMAGE_FILE
+      image_file: "[datastore1] floppies/boot.flp"
+    start_connected: true
+    allow_guest_control: true
+    state: present
+  check_mode: true
+  register: create_check
+
+- name: Assert check mode reports change when creating
+  ansible.builtin.assert:
+    that:
+      - create_check.changed
+
+# Test 4: Check mode when resource exists (provide MOID)
+- name: Reset before idempotent check mode expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec back to created state
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/created.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Create floppy drive in check mode (when exists, idempotent)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy:
+    vm: vm-1001
+    floppy: floppy-1001
+    backing:
+      type: IMAGE_FILE
+      image_file: "[datastore1] floppies/boot.flp"
+    start_connected: true
+    allow_guest_control: true
+    state: present
+  check_mode: true
+  register: create_check_idem
+
+- name: Assert check mode reports no change when already exists
+  ansible.builtin.assert:
+    that:
+      - not create_check_idem.changed

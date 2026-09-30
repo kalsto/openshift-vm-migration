@@ -1,0 +1,4 @@
+---
+collections:
+  - redhat.openshift
+  - kubernetes.core

@@ -1,0 +1,84 @@
+---
+# ============================================================
+# FLOPPY INFO TESTS
+# ============================================================
+
+# Test 1: List when empty
+- name: List floppy drives (empty)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy_info:
+    vm: vm-1001
+  register: list_empty
+
+- name: Assert empty list
+  ansible.builtin.assert:
+    that:
+      - list_empty.info is defined
+      - list_empty.info | length == 0
+
+# Test 2: Get by MOID
+- name: Reset before get expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for get
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/default.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: Get floppy drive by MOID
+  vmware.vmware_rest.vcenter_vm_hardware_floppy_info:
+    vm: vm-1001
+    floppy: floppy-1001
+  register: get_by_id
+
+- name: Assert floppy drive details
+  ansible.builtin.assert:
+    that:
+      - get_by_id.value is defined
+      - get_by_id.value.label == 'Floppy drive 1'
+      - get_by_id.value.backing.type == 'IMAGE_FILE'
+      - get_by_id.value.backing.image_file == '[datastore1] floppies/boot.flp'
+      - get_by_id.value.start_connected == true
+      - get_by_id.value.allow_guest_control == true
+      - get_by_id.info is defined
+      - get_by_id.info | length == 1
+
+# Test 3: List multiple items
+- name: Reset before multiple list expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for multiple
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/list_multiple.json"
+      operationsAndResponses:
+        Vcenter.Vm.Hardware.Floppy_list: "200"
+        Vcenter.Vm.Hardware.Floppy_get: "200"
+
+- name: List floppy drives (multiple)
+  vmware.vmware_rest.vcenter_vm_hardware_floppy_info:
+    vm: vm-1001
+  register: list_multi
+
+- name: Check multiple items in list
+  ansible.builtin.assert:
+    that:
+      - list_multi.value is defined
+      - list_multi.value | length == 2
+      - list_multi.info is defined
+      - list_multi.info | length == 2

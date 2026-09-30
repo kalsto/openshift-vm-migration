@@ -1,0 +1,128 @@
+---
+# Per-component configuration map.
+# Maps component names to their rotation commands, env vars, and secret names
+# for both podman and operator deployment types.
+#
+# Internal variables are prefixed with double underscore per
+# Automation Good Practices to avoid namespace collisions.
+
+__aap_secret_rotate_components:
+  controller:
+    manage_cmd: "awx-manage"
+    rotate_cmd: "regenerate_secret_key --use-custom-key"
+    env_var: "TOWER_SECRET_KEY"
+    podman_secret: "controller_secret_key"
+    podman_container: "{{ aap_secret_rotate_controller_container }}"
+    k8s_secret: "{{ aap_secret_rotate_cr_name }}-controller-secret-key"
+    k8s_secret_field: "secret_key"
+    k8s_deployment_label: "app.kubernetes.io/component=automationcontroller"
+    custom_key_var: "{{ aap_secret_rotate_controller_key }}"
+    supports_dry_run: false
+
+  gateway:
+    manage_cmd: "aap-gateway-manage"
+    rotate_cmd: "rotate_secret_key --use-custom-key"
+    env_var: "GATEWAY_SECRET_KEY"
+    podman_secret: "gateway_secret_key"
+    podman_container: "{{ aap_secret_rotate_gateway_container }}"
+    k8s_secret: "{{ aap_secret_rotate_cr_name }}-db-fields-encryption-secret"
+    k8s_secret_field: "secret_key"
+    k8s_deployment_label: "app.kubernetes.io/component=aap-gateway"
+    custom_key_var: "{{ aap_secret_rotate_gateway_key }}"
+    supports_dry_run: true
+
+  eda:
+    manage_cmd: "aap-eda-manage"
+    rotate_cmd: "rotate_db_encryption_key --use-custom-key"
+    env_var: "EDA_SECRET_KEY"
+    podman_secret: "eda_secret_key"
+    podman_container: "{{ aap_secret_rotate_eda_container }}"
+    k8s_secret: "{{ aap_secret_rotate_cr_name }}-eda-db-fields-encryption-secret"
+    k8s_secret_field: "secret_key"
+    k8s_deployment_label: "app.kubernetes.io/component=eda-api"
+    custom_key_var: "{{ aap_secret_rotate_eda_key }}"
+    supports_dry_run: true
+
+  hub:
+    manage_cmd: "pulpcore-manager"
+    rotate_cmd: "rotate-db-key"
+    env_var: ""
+    podman_secret: "hub_database_fields"
+    podman_container: "{{ aap_secret_rotate_hub_container }}"
+    k8s_secret: "{{ aap_secret_rotate_cr_name }}-hub-db-fields-encryption"
+    k8s_secret_field: "database_fields.symmetric.key"
+    k8s_deployment_label: "app.kubernetes.io/component=api,app.kubernetes.io/part-of=automationhub"
+    custom_key_var: "{{ aap_secret_rotate_hub_key }}"
+    supports_dry_run: false
+
+__aap_secret_rotate_podman_containers:
+  controller:
+    - "automation-controller-task"
+    - "automation-controller-web"
+  gateway:
+    - "automation-gateway"
+  eda:
+    - "automation-eda-api"
+    - "automation-eda-daphne"
+    - "automation-eda-web"
+    - "automation-eda-worker-1"
+    - "automation-eda-worker-2"
+    - "automation-eda-activation-worker-1"
+    - "automation-eda-activation-worker-2"
+  hub:
+    - "automation-hub-api"
+    - "automation-hub-content"
+    - "automation-hub-web"
+    - "automation-hub-worker-1"
+    - "automation-hub-worker-2"
+
+# In-container paths where each component's secret key file is mounted.
+# After updating the podman secret, we also overwrite this file inside
+# every running container so the process picks up the new key without
+# needing the container to be recreated.
+__aap_secret_rotate_podman_secret_paths:
+  controller: "/etc/tower/SECRET_KEY"
+  gateway: "/etc/ansible-automation-platform/gateway/SECRET_KEY"
+  eda: "/etc/eda/SECRET_KEY"
+  hub: "/etc/pulp/keys/database_fields.symmetric.key"
+
+# Kubernetes exec targets: the deployment and container to exec into for
+# running management commands on each component.
+__aap_secret_rotate_k8s_exec:
+  controller:
+    deployment: "{{ aap_secret_rotate_cr_name }}-controller-task"
+    container: "{{ aap_secret_rotate_cr_name }}-controller-task"
+  gateway:
+    deployment: "{{ aap_secret_rotate_cr_name }}-gateway"
+    container: "api"
+  eda:
+    deployment: "{{ aap_secret_rotate_cr_name }}-eda-api"
+    container: "eda-api"
+  hub:
+    deployment: "{{ aap_secret_rotate_cr_name }}-hub-api"
+    container: "api"
+
+# All Kubernetes deployments per component that need a rollout restart
+# after the secret key is updated.
+__aap_secret_rotate_k8s_deployments:
+  controller:
+    - "{{ aap_secret_rotate_cr_name }}-controller-task"
+    - "{{ aap_secret_rotate_cr_name }}-controller-web"
+  gateway:
+    - "{{ aap_secret_rotate_cr_name }}-gateway"
+  eda:
+    - "{{ aap_secret_rotate_cr_name }}-eda-api"
+    - "{{ aap_secret_rotate_cr_name }}-eda-activation-worker"
+    - "{{ aap_secret_rotate_cr_name }}-eda-default-worker"
+    - "{{ aap_secret_rotate_cr_name }}-eda-event-stream"
+  hub:
+    - "{{ aap_secret_rotate_cr_name }}-hub-api"
+    - "{{ aap_secret_rotate_cr_name }}-hub-content"
+    - "{{ aap_secret_rotate_cr_name }}-hub-worker"
+    - "{{ aap_secret_rotate_cr_name }}-hub-web"
+
+# In-container key file paths for operator deployments (same paths as
+# Podman but used for multi-key writes via kubectl exec).
+__aap_secret_rotate_k8s_secret_paths:
+  hub: "/etc/pulp/keys/database_fields.symmetric.key"
+...

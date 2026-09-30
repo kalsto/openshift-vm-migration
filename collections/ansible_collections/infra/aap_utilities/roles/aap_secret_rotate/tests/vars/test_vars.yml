@@ -1,0 +1,18 @@
+---
+# Override variables for testing.
+# Copy and modify as needed for your environment.
+
+# Rotate all components (default order)
+aap_secret_rotate_components:
+  - controller
+  - hub
+  - eda
+  - gateway
+
+# Always start with a dry run
+aap_secret_rotate_dry_run: true
+
+# Operator settings
+aap_secret_rotate_namespace: "aap"
+aap_secret_rotate_cr_name: "aap"
+...

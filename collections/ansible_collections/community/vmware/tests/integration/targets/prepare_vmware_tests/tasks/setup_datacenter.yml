@@ -1,0 +1,15 @@
+- name: Create Datacenter
+  vmware_datacenter:
+    datacenter_name: '{{ dc1 }}'
+    state: present
+
+- name: Create a VM folder on given Datacenter
+  vmware.vmware.folder:
+    hostname: '{{ vcenter_hostname }}'
+    username: '{{ vcenter_username }}'
+    password: '{{ vcenter_password }}'
+    datacenter: '{{ dc1 }}'
+    relative_path: '{{ f0 }}'
+    folder_type: vm
+    state: present
+    validate_certs: false

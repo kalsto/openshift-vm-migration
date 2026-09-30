@@ -1,0 +1,13 @@
+---
+- name: Verify aap_cleanup role is available in collection
+  ansible.builtin.command:
+    cmd: ansible-doc --type role infra.openshift_virtualization_migration.aap_cleanup --json
+  register: _cleanup_aap_doc
+  changed_when: false
+
+- name: Assert aap_cleanup role documentation is accessible
+  ansible.builtin.assert:
+    that:
+      - _cleanup_aap_doc.rc == 0
+    fail_msg: "aap_cleanup role not found in installed collection"
+...

@@ -1,0 +1,5 @@
+---
+chart_test_repo: "https://kubernetes.github.io/ingress-nginx"
+helm_versions:
+  - v3.20.0
+  - v4.0.0

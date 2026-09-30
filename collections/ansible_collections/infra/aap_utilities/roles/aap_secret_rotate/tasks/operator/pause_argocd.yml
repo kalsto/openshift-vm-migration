@@ -1,0 +1,57 @@
+---
+# Suspends ArgoCD auto-sync on the Application that manages the AAP
+# namespace, preventing ArgoCD from reverting the idle_aap patch or
+# secret changes during rotation.
+
+- name: Read current ArgoCD Application
+  kubernetes.core.k8s_info:
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+    name: "{{ aap_secret_rotate_argocd_app_name }}"
+    namespace: "{{ aap_secret_rotate_argocd_app_namespace }}"
+  register: __aap_secret_rotate_argocd_app
+
+- name: Fail if ArgoCD Application not found
+  ansible.builtin.fail:
+    msg: >-
+      ArgoCD Application '{{ aap_secret_rotate_argocd_app_name }}' not found
+      in namespace '{{ aap_secret_rotate_argocd_app_namespace }}'.
+      Set aap_secret_rotate_argocd_app_name and aap_secret_rotate_argocd_app_namespace
+      to the correct values.
+  when: __aap_secret_rotate_argocd_app.resources | length == 0
+
+- name: Save current sync policy (for resume)
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_argocd_had_auto_sync: >-
+      {{ __aap_secret_rotate_argocd_app.resources[0].spec.syncPolicy.automated is defined }}
+    __aap_secret_rotate_argocd_original_sync_policy: >-
+      {{ __aap_secret_rotate_argocd_app.resources[0].spec.syncPolicy | default({}) }}
+
+- name: Suspend ArgoCD auto-sync
+  kubernetes.core.k8s_json_patch:
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+    name: "{{ aap_secret_rotate_argocd_app_name }}"
+    namespace: "{{ aap_secret_rotate_argocd_app_namespace }}"
+    patch:
+      - op: remove
+        path: /spec/syncPolicy/automated
+  register: __aap_secret_rotate_argocd_suspend
+  failed_when:
+    - __aap_secret_rotate_argocd_suspend is failed
+    - "'not found' not in (__aap_secret_rotate_argocd_suspend.msg | default(''))"
+  when:
+    - not aap_secret_rotate_dry_run
+    - __aap_secret_rotate_argocd_had_auto_sync | bool
+
+- name: Display ArgoCD sync suspension status
+  ansible.builtin.debug:
+    msg: >-
+      ArgoCD auto-sync suspended on Application '{{ aap_secret_rotate_argocd_app_name }}'.
+      {{ 'Auto-sync was already disabled.' if not (__aap_secret_rotate_argocd_had_auto_sync | bool) else '' }}
+
+- name: Dry run - would suspend ArgoCD auto-sync
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would suspend auto-sync on ArgoCD Application '{{ aap_secret_rotate_argocd_app_name }}'"
+  when: aap_secret_rotate_dry_run
+...

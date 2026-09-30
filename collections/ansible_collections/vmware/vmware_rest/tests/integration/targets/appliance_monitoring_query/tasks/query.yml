@@ -1,0 +1,130 @@
+---
+# ============================================================
+# APPLIANCE_MONITORING_QUERY TESTS
+# ============================================================
+# appliance_monitoring_query is a read-only, info-style module. It issues a
+# single GET against /appliance/monitoring/query and normalizes the returned
+# time-series data into the standard info/value shape.
+
+# Test 1: Query returns no data points (empty result)
+- name: Query monitoring data (empty result)
+  vmware.vmware_rest.appliance_monitoring_query:
+    item:
+      interval: MINUTES5
+      function: AVG
+      start_time: "2026-01-01T00:00:00.000Z"
+      end_time: "2026-01-02T00:00:00.000Z"
+    names:
+      - cpu.util
+  register: query_empty
+
+- name: Assert empty result is returned without change
+  ansible.builtin.assert:
+    that:
+      - query_empty.info is defined
+      - query_empty.info | length == 0
+      - query_empty.value | length == 0
+      - not query_empty.changed
+
+# Test 2: Query a single monitored item's data
+- name: Reset before single item expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for a single monitored item
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/single.json"
+      operationsAndResponses:
+        Appliance.Monitoring.Query_get: "200"
+
+- name: Query monitoring data for a single item
+  vmware.vmware_rest.appliance_monitoring_query:
+    item:
+      interval: MINUTES5
+      function: AVG
+      start_time: "2026-01-01T00:00:00.000Z"
+      end_time: "2026-01-02T00:00:00.000Z"
+    names:
+      - cpu.util
+  register: query_single
+
+- name: Assert single monitored item data is returned
+  ansible.builtin.assert:
+    that:
+      - query_single.info is defined
+      - query_single.info | length == 1
+      - query_single.info[0].name == 'cpu.util'
+      - query_single.info[0].interval == 'MINUTES5'
+      - query_single.info[0].function == 'AVG'
+      - query_single.info[0].data | length == 3
+      # value keeps the single-resource shape (a dict, not a list)
+      - query_single.value.name == 'cpu.util'
+      - query_single.value.data[0] == '3.5'
+      - not query_single.changed
+
+# Test 3: Query multiple monitored items' data
+- name: Reset before multiple item expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for multiple monitored items
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/list_multiple.json"
+      operationsAndResponses:
+        Appliance.Monitoring.Query_get: "200"
+
+- name: Query monitoring data for multiple items
+  vmware.vmware_rest.appliance_monitoring_query:
+    item:
+      interval: MINUTES5
+      function: AVG
+      start_time: "2026-01-01T00:00:00.000Z"
+      end_time: "2026-01-02T00:00:00.000Z"
+    names:
+      - cpu.util
+      - mem.util
+  register: query_multiple
+
+- name: Assert multiple monitored items data is returned
+  ansible.builtin.assert:
+    that:
+      - query_multiple.info is defined
+      - query_multiple.info | length == 2
+      - query_multiple.info | map(attribute='name') | list | sort == ['cpu.util', 'mem.util']
+      # value keeps the list shape when more than one item is returned
+      - query_multiple.value | length == 2
+      - not query_multiple.changed
+
+# Test 4: Check mode returns the same read-only result without change
+- name: Query monitoring data (check mode)
+  vmware.vmware_rest.appliance_monitoring_query:
+    item:
+      interval: MINUTES5
+      function: AVG
+      start_time: "2026-01-01T00:00:00.000Z"
+      end_time: "2026-01-02T00:00:00.000Z"
+    names:
+      - cpu.util
+      - mem.util
+  check_mode: true
+  register: query_check
+
+- name: Assert check mode reports no change for read-only query module
+  ansible.builtin.assert:
+    that:
+      - query_check.info | length == 2
+      - not query_check.changed

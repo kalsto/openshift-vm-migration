@@ -1,0 +1,13 @@
+---
+- name: Verify ocp_cleanup role is available in collection
+  ansible.builtin.command:
+    cmd: ansible-doc --type role infra.openshift_virtualization_migration.ocp_cleanup --json
+  register: _cleanup_ocp_doc
+  changed_when: false
+
+- name: Assert ocp_cleanup role documentation is accessible
+  ansible.builtin.assert:
+    that:
+      - _cleanup_ocp_doc.rc == 0
+    fail_msg: "ocp_cleanup role not found in installed collection"
+...

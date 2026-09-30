@@ -1,0 +1,217 @@
+---
+- name: Validate requested components
+  ansible.builtin.assert:
+    that:
+      - item in __aap_secret_rotate_components
+    fail_msg: "Unknown component '{{ item }}'. Valid components: {{ __aap_secret_rotate_components.keys() | list }}"
+    quiet: true
+  loop: "{{ aap_secret_rotate_components }}"
+
+- name: Auto-detect deployment type
+  when: aap_secret_rotate_deployment_type | length == 0
+  block:
+    - name: Check for podman binary
+      ansible.builtin.command:
+        cmd: podman --version
+      register: __aap_secret_rotate_podman_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check for podman-based AAP installation
+      ansible.builtin.command:
+        cmd: podman container exists {{ aap_secret_rotate_gateway_container }}
+      register: __aap_secret_rotate_podman_aap_check
+      changed_when: false
+      failed_when: false
+      when: __aap_secret_rotate_podman_check.rc == 0
+
+    - name: Check for kubectl binary
+      ansible.builtin.command:
+        cmd: kubectl version --client
+      register: __aap_secret_rotate_kubectl_check
+      changed_when: false
+      failed_when: false
+      when:
+        - __aap_secret_rotate_podman_check.rc != 0 or (__aap_secret_rotate_podman_aap_check.rc | default(1)) != 0
+
+    - name: Check for oc binary (fallback)
+      ansible.builtin.command:
+        cmd: oc version --client
+      register: __aap_secret_rotate_oc_check
+      changed_when: false
+      failed_when: false
+      when:
+        - __aap_secret_rotate_podman_check.rc != 0 or (__aap_secret_rotate_podman_aap_check.rc | default(1)) != 0
+        - __aap_secret_rotate_kubectl_check.rc | default(1) != 0
+
+    - name: Set deployment type to podman
+      ansible.builtin.set_fact:
+        aap_secret_rotate_deployment_type: "podman"
+      when:
+        - __aap_secret_rotate_podman_check.rc == 0
+        - (__aap_secret_rotate_podman_aap_check.rc | default(1)) == 0
+
+    - name: Set deployment type to operator
+      ansible.builtin.set_fact:
+        aap_secret_rotate_deployment_type: "operator"
+      when:
+        - aap_secret_rotate_deployment_type | length == 0
+        - (__aap_secret_rotate_kubectl_check.rc | default(1) == 0)
+          or (__aap_secret_rotate_oc_check.rc | default(1) == 0)
+
+    - name: Fail if deployment type could not be detected
+      ansible.builtin.fail:
+        msg: >-
+          Could not auto-detect deployment type. No running AAP podman containers
+          found, and neither kubectl nor oc is available. Set
+          aap_secret_rotate_deployment_type explicitly to 'podman' or 'operator'.
+      when: aap_secret_rotate_deployment_type | length == 0
+
+- name: Validate deployment type value
+  ansible.builtin.assert:
+    that:
+      - aap_secret_rotate_deployment_type in ['podman', 'operator']
+    fail_msg: >-
+      aap_secret_rotate_deployment_type must be 'podman' or 'operator',
+      got '{{ aap_secret_rotate_deployment_type }}'
+    quiet: true
+
+- name: Resolve kubectl-compatible CLI binary (operator only)
+  when:
+    - aap_secret_rotate_deployment_type == 'operator'
+    - aap_secret_rotate_kubectl_binary | length == 0
+  block:
+    - name: Probe for kubectl
+      ansible.builtin.command:
+        cmd: kubectl version --client
+      register: __aap_secret_rotate_probe_kubectl
+      changed_when: false
+      failed_when: false
+
+    - name: Probe for oc (fallback)
+      ansible.builtin.command:
+        cmd: oc version --client
+      register: __aap_secret_rotate_probe_oc
+      changed_when: false
+      failed_when: false
+      when: __aap_secret_rotate_probe_kubectl.rc != 0
+
+    - name: Set kubectl binary
+      ansible.builtin.set_fact:
+        aap_secret_rotate_kubectl_binary: >-
+          {{ 'kubectl' if (__aap_secret_rotate_probe_kubectl.rc | default(1)) == 0
+             else 'oc' if (__aap_secret_rotate_probe_oc.rc | default(1)) == 0
+             else '' }}
+
+    - name: Fail if no kubectl-compatible binary found
+      ansible.builtin.fail:
+        msg: >-
+          Neither kubectl nor oc found on this host. Install one or set
+          aap_secret_rotate_kubectl_binary to the path of a compatible CLI.
+      when: aap_secret_rotate_kubectl_binary | length == 0
+
+- name: Detect External Secrets Operator (ESO) and ArgoCD (operator only)
+  when: aap_secret_rotate_deployment_type == 'operator'
+  block:
+    - name: Detect ESO-managed secrets
+      when: aap_secret_rotate_eso_managed | string | length == 0
+      block:
+        - name: Check for ExternalSecret resources targeting AAP secrets
+          kubernetes.core.k8s_info:
+            api_version: external-secrets.io/v1beta1
+            kind: ExternalSecret
+            namespace: "{{ aap_secret_rotate_namespace }}"
+          register: __aap_secret_rotate_eso_check
+          failed_when: false
+
+        - name: Collect ESO-managed secret names
+          ansible.builtin.set_fact:
+            __aap_secret_rotate_eso_managed_secrets: >-
+              {{ __aap_secret_rotate_eso_check.resources | default([])
+                 | map(attribute='spec.target.name', default='')
+                 | select('string')
+                 | list }}
+          when: __aap_secret_rotate_eso_check is not failed
+
+        - name: Set ESO managed flag
+          ansible.builtin.set_fact:
+            aap_secret_rotate_eso_managed: >-
+              {{ (__aap_secret_rotate_eso_managed_secrets | default([]) | length > 0) | bool }}
+
+        - name: Display ESO detection result
+          ansible.builtin.debug:
+            msg: >-
+              External Secrets Operator detected. ESO-managed secrets in namespace:
+              {{ __aap_secret_rotate_eso_managed_secrets | join(', ') }}
+          when: aap_secret_rotate_eso_managed | bool
+
+    - name: Detect ArgoCD-managed Application
+      when:
+        - aap_secret_rotate_argocd_managed | string | length == 0
+          or aap_secret_rotate_argocd_app_namespace | length == 0
+      block:
+        - name: Search for ArgoCD Applications in specific namespace
+          kubernetes.core.k8s_info:
+            api_version: argoproj.io/v1alpha1
+            kind: Application
+            namespace: "{{ aap_secret_rotate_argocd_app_namespace }}"
+          register: __aap_secret_rotate_argocd_apps_check
+          failed_when: false
+          when: aap_secret_rotate_argocd_app_namespace | length > 0
+
+        - name: Search all namespaces for ArgoCD Applications
+          kubernetes.core.k8s_info:
+            api_version: argoproj.io/v1alpha1
+            kind: Application
+          register: __aap_secret_rotate_argocd_apps_check
+          failed_when: false
+          when: aap_secret_rotate_argocd_app_namespace | length == 0
+
+        - name: Find Application managing the AAP namespace
+          ansible.builtin.set_fact:
+            __aap_secret_rotate_argocd_matching_app: >-
+              {{ __aap_secret_rotate_argocd_apps_check.resources | default([])
+                 | selectattr('spec.destination.namespace', 'defined')
+                 | selectattr('spec.destination.namespace', 'equalto', aap_secret_rotate_namespace)
+                 | list | first | default({}) }}
+          when: __aap_secret_rotate_argocd_apps_check is not failed
+
+        - name: Set ArgoCD managed flag, app name, and namespace
+          ansible.builtin.set_fact:
+            aap_secret_rotate_argocd_managed: >-
+              {{ (__aap_secret_rotate_argocd_matching_app | default({}) | length > 0) | bool }}
+            aap_secret_rotate_argocd_app_name: >-
+              {{ __aap_secret_rotate_argocd_matching_app.metadata.name | default('') }}
+            aap_secret_rotate_argocd_app_namespace: >-
+              {{ __aap_secret_rotate_argocd_matching_app.metadata.namespace | default('') }}
+          when:
+            - __aap_secret_rotate_argocd_matching_app | default({}) | length > 0
+
+        - name: Set ArgoCD managed to false when no Application found
+          ansible.builtin.set_fact:
+            aap_secret_rotate_argocd_managed: false
+          when:
+            - __aap_secret_rotate_argocd_matching_app | default({}) | length == 0
+
+        - name: Display ArgoCD detection result
+          ansible.builtin.debug:
+            msg: >-
+              ArgoCD Application '{{ aap_secret_rotate_argocd_app_name }}' detected
+              in namespace '{{ aap_secret_rotate_argocd_app_namespace }}'
+              managing '{{ aap_secret_rotate_namespace }}'.
+          when: aap_secret_rotate_argocd_managed | bool
+
+    - name: Coerce boolean flags for ESO and ArgoCD
+      ansible.builtin.set_fact:
+        aap_secret_rotate_eso_managed: "{{ aap_secret_rotate_eso_managed | default(false) | bool }}"
+        aap_secret_rotate_argocd_managed: "{{ aap_secret_rotate_argocd_managed | default(false) | bool }}"
+
+- name: Display rotation plan
+  ansible.builtin.debug:
+    msg: >-
+      Secret key rotation: components={{ aap_secret_rotate_components | join(', ') }},
+      deployment_type={{ aap_secret_rotate_deployment_type }},
+      dry_run={{ aap_secret_rotate_dry_run }}
+      {{ ', eso_managed=' ~ aap_secret_rotate_eso_managed if aap_secret_rotate_deployment_type == 'operator' else '' }}
+      {{ ', argocd_managed=' ~ aap_secret_rotate_argocd_managed if aap_secret_rotate_deployment_type == 'operator' else '' }}
+...

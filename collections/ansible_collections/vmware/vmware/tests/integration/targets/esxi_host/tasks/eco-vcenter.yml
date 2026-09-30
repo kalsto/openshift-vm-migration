@@ -1,0 +1,144 @@
+---
+- name: Lookup Root Resource Pool ID
+  ansible.builtin.set_fact:
+    vcenter_rp_id: >-
+      {{ lookup('vmware.vmware.moid_from_path',
+      '/' + vcenter_datacenter + '/host/' + vcenter_cluster_name + '/' + vcenter_resource_pool,
+      **vmware_rest_auth_vars) }}
+
+- name: Test
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Create a test folders
+      vmware.vmware.folder:
+        relative_path: "{{ item }}"
+        folder_type: host
+        datacenter: "{{ vcenter_datacenter }}"
+      loop:
+        - "{{ test_folder_1 }}"
+        - "{{ test_folder_2 }}"
+
+    - name: Create a test resource pool
+      vmware.vmware_rest.vcenter_resourcepool:
+        name: "{{ test_resource_pool }}"
+        parent: "{{ vcenter_rp_id }}"
+      register: _test_rp
+
+    - name: Gather Library Item Info
+      vmware.vmware.content_library_item_info:
+        library_item_name: "{{ esxi_content_library_template }}"
+        library_name: "{{ ci_resources_content_library }}"
+      register: _template
+
+    - name: Deploy Virtual ESXi Host
+      vmware.vmware_rest.vcenter_ovf_libraryitem:
+        ovf_library_item_id: "{{ (_template.library_item_info | first).id }}"
+        session_timeout: 10000
+        state: deploy
+        target:
+          resource_pool_id: "{{ _test_rp.id }}"
+        deployment_spec:
+          name: "{{ test_esxi_hostname }}"
+          accept_all_EULA: true
+          storage_provisioning: thin
+      register: _deploy
+
+    - name: Power On Host
+      vmware.vmware.vm_powerstate:
+        state: powered-on
+        datacenter: "{{ vcenter_datacenter }}"
+        moid: "{{ _deploy.value.resource_id.id }}"
+
+    - name: Wait For ESXi Host To Have IP
+      vmware.vmware.vm_info:
+        name: "{{ test_esxi_hostname }}"
+      register: _esxi_info
+      until: >-
+        _esxi_info.guests[0].ipv4 is defined and
+        _esxi_info.guests[0].ipv4 is truthy and
+        not _esxi_info.guests[0].ipv4.startswith('169.254')
+      retries: 60
+      delay: 5
+
+    - name: Pause for 15 seconds to ensure host is ready
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Join Hosts To Cluster
+      vmware.vmware.esxi_host:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        esxi_host_name: "{{ _esxi_info.guests[0].ipv4 }}"
+        esxi_username: "{{ test_esxi_username }}"
+        esxi_password: "{{ test_esxi_password }}"
+        state: present
+
+    - name: Put Host In Maintenance Mode
+      vmware.vmware.esxi_maintenance_mode:
+        esxi_host_name: "{{ test_esxi_ip | default(_esxi_info.guests[0].ipv4) }}"
+        enable_maintenance_mode: true
+
+    - name: Move Host To Folder
+      vmware.vmware.esxi_host:
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: "{{ test_folder_1 }}"
+        esxi_host_name: "{{ _esxi_info.guests[0].ipv4 }}"
+        esxi_username: "{{ test_esxi_username }}"
+        esxi_password: "{{ test_esxi_password }}"
+      register: _f1
+
+    - name: Move Host To Another Folder
+      vmware.vmware.esxi_host:
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: "{{ test_folder_2 }}"
+        esxi_host_name: "{{ _esxi_info.guests[0].ipv4 }}"
+        esxi_username: "{{ test_esxi_username }}"
+        esxi_password: "{{ test_esxi_password }}"
+      register: _f2
+
+    - name: Move Host To Cluster
+      vmware.vmware.esxi_host:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        esxi_host_name: "{{ _esxi_info.guests[0].ipv4 }}"
+        esxi_username: "{{ test_esxi_username }}"
+        esxi_password: "{{ test_esxi_password }}"
+      register: _c2
+
+    - name: Check Output
+      ansible.builtin.assert:
+        that:
+          - _f1 is changed
+          - _f2 is changed
+          - _c2 is changed
+
+  always:
+    - name: Remove Host From vCenter
+      vmware.vmware.esxi_host:
+        datacenter: "{{ vcenter_datacenter }}"
+        esxi_host_name: "{{ _esxi_info.guests[0].ipv4 }}"
+        state: absent
+      when: _esxi_info.guests[0] is defined
+    - name: "Test cleanup: Delete Virtual ESXi Host"
+      community.vmware.vmware_guest:
+        cluster: "{{ vcenter_cluster_name }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: ""
+        state: absent
+        name: "{{ test_esxi_hostname }}"
+        force: true
+    - name: Delete test folders
+      vmware.vmware.folder:
+        relative_path: "{{ item }}"
+        folder_type: host
+        datacenter: "{{ vcenter_datacenter }}"
+        state: absent
+      loop:
+        - "{{ test_folder_1 }}"
+        - "{{ test_folder_2 }}"
+    - name: "Test cleanup: Delete Resource Pool"
+      vmware.vmware_rest.vcenter_resourcepool:
+        resource_pool: "{{ _test_rp.id }}"
+        state: absent
+      when: _test_rp.id is defined

@@ -1,0 +1,5 @@
+ansible-core
+
+aiohttp
+pyVmomi>=8.0.3.0.1
+vmware-vcenter>=9.1.0.0

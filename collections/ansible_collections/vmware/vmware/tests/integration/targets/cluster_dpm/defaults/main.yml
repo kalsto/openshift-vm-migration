@@ -1,0 +1,6 @@
+---
+test_cluster: DC0_C0
+
+dpm_enable: true
+dpm_automation_level: manual
+dpm_recommendation_priority_threshold: 2

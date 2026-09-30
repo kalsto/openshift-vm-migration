@@ -1,0 +1,50 @@
+---
+- name: Test On VCenter
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+    - name: Create Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+    - name: Set DPM Settings In Test Cluster
+      vmware.vmware.cluster_dpm:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        enable: "{{ dpm_enable }}"
+        automation_level: "{{ dpm_automation_level }}"
+        recommendation_priority_threshold: "{{ dpm_recommendation_priority_threshold }}"
+      register: _out
+    # testing for idempotence because recommendation_preiority_threshold is a little counter intuitive
+    - name: Set DPM Settings In Test Cluster Again - Idempotence
+      vmware.vmware.cluster_dpm:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        enable: "{{ dpm_enable }}"
+        automation_level: "{{ dpm_automation_level }}"
+        recommendation_priority_threshold: "{{ dpm_recommendation_priority_threshold }}"
+      register: _out
+    - name: Check Task Result
+      ansible.builtin.assert:
+        that: _out is not changed
+    - name: Gather Cluster Settings
+      vmware.vmware.cluster_info:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _cluster_info
+    - name: Validate DPM Output
+      ansible.builtin.assert:
+        that:
+          - _cluster_info.clusters[test_cluster].dpm_enabled
+          - _cluster_info.clusters[test_cluster].dpm_default_dpm_behavior == dpm_automation_level
+          - _cluster_info.clusters[test_cluster].dpm_host_power_action_rate == dpm_recommendation_priority_threshold
+
+  always:
+    - name: Destroy Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+        state: absent

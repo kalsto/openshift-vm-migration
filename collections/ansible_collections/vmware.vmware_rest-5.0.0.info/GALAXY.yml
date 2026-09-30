@@ -1,0 +1,8 @@
+download_url: https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/artifacts/vmware-vmware_rest-5.0.0.tar.gz
+format_version: 1.0.0
+name: vmware_rest
+namespace: vmware
+server: https://galaxy.ansible.com/api/
+signatures: []
+version: 5.0.0
+version_url: /api/content/published/v3/plugin/ansible/content/published/collections/index/vmware/vmware_rest/versions/5.0.0/

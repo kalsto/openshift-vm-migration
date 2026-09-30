@@ -1,0 +1,30 @@
+---
+- name: Test On VCenter
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+    - name: Create Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _create
+    - name: Gather Cluster Info
+      vmware.vmware.cluster_info:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _cluster_info
+    - name: Check Cluster Output
+      ansible.builtin.assert:
+        that:
+          - _create.cluster.moid is defined
+          - _create.cluster.moid == _cluster_info.clusters[test_cluster].moid
+
+  always:
+    - name: Destroy Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+        state: absent

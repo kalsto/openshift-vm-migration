@@ -1,0 +1,256 @@
+---
+# Rotation workflow for Automation Gateway.
+#
+# Gateway stores encrypted data in the database (ServiceKey secrets,
+# Authenticator configuration sub-fields, encrypted Preferences).
+# Re-encrypting this data requires the aap-gateway-manage rotate_secret_key
+# command, which was added in AAP-75712 and ships from the 2.7.20260801+
+# and 2.6.20260801+ builds onward.
+#
+# If the command is not present, Gateway rotation is SKIPPED with a
+# warning. A simple key replacement would leave existing encrypted
+# data unreadable.
+#
+# Known upstream bug: rotate_secret_key reads AuthenticatorUser.extra_data
+# via raw SQL without calling json.loads() on the jsonb column value. The
+# jsonb string wrapper (leading quote) prevents the $encrypted$ prefix
+# from being recognised, causing a decryption failure. As a workaround,
+# this task clears all AuthenticatorUser records before rotation. These
+# records are non-critical auth provider mappings that are automatically
+# recreated on the next user login.
+#
+# Key modes:
+#   Custom key provided (aap_secret_rotate_gateway_key is set):
+#     Uses --use-custom-key with GATEWAY_SECRET_KEY env var.
+#     The command reads the OLD key from settings (mounted file) and the
+#     NEW key from the env var.
+#
+#   Auto-generated (default, no custom key):
+#     Runs without --use-custom-key. The command generates a new key
+#     internally, re-encrypts data, and prints the new key to stdout.
+#     We capture it and update the secret.
+
+- name: Set component config for Gateway
+  ansible.builtin.set_fact:
+    _component: "gateway"
+    _component_config: "{{ __aap_secret_rotate_components.gateway }}"
+
+- name: Check if Gateway has rotate_secret_key command (podman)
+  ansible.builtin.command:
+    cmd: >-
+      podman exec {{ __aap_secret_rotate_components.gateway.podman_container }}
+      aap-gateway-manage help rotate_secret_key
+  register: __aap_secret_rotate_gw_cmd_check
+  changed_when: false
+  failed_when: false
+  when: aap_secret_rotate_deployment_type == 'podman'
+
+- name: Get Gateway deployment selector (operator)
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ __aap_secret_rotate_k8s_exec.gateway.deployment }}"
+    namespace: "{{ aap_secret_rotate_namespace }}"
+  register: __aap_secret_rotate_gw_deploy
+  when: aap_secret_rotate_deployment_type == 'operator'
+
+- name: Find Gateway pod for command check (operator)
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      get pods
+      -l {{ __aap_secret_rotate_gw_deploy.resources[0].spec.selector.matchLabels
+            | dict2items | map(attribute='key') | zip(
+              __aap_secret_rotate_gw_deploy.resources[0].spec.selector.matchLabels
+              | dict2items | map(attribute='value')
+            ) | map('join', '=') | join(',') }}
+      --field-selector=status.phase=Running
+      -o jsonpath={.items[0].metadata.name}
+  register: __aap_secret_rotate_gw_pod
+  changed_when: false
+  failed_when: false
+  when:
+    - aap_secret_rotate_deployment_type == 'operator'
+    - __aap_secret_rotate_gw_deploy.resources | length > 0
+
+- name: Check if Gateway has rotate_secret_key command (operator)
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      exec {{ __aap_secret_rotate_gw_pod.stdout }}
+      -c {{ __aap_secret_rotate_k8s_exec.gateway.container }}
+      -- aap-gateway-manage help rotate_secret_key
+  register: __aap_secret_rotate_gw_cmd_check_operator
+  changed_when: false
+  failed_when: false
+  when:
+    - aap_secret_rotate_deployment_type == 'operator'
+    - __aap_secret_rotate_gw_pod.stdout | default('') | length > 0
+
+- name: Set Gateway rotation mode
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_gw_has_rotate: >-
+      {{ (__aap_secret_rotate_gw_cmd_check.rc | default(1) == 0)
+         or (__aap_secret_rotate_gw_cmd_check_operator.rc | default(1) == 0) }}
+    __aap_secret_rotate_gw_use_custom: "{{ aap_secret_rotate_gateway_key | default('') | length > 0 }}"
+
+- name: Skip Gateway rotation when rotate_secret_key is unavailable
+  when: not (__aap_secret_rotate_gw_has_rotate | bool)
+  block:
+    - name: Display Gateway skip warning
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: Gateway rotation SKIPPED. The rotate_secret_key management
+          command is not available in this Gateway build. Without it, replacing
+          the SECRET_KEY would leave encrypted database fields (ServiceKey
+          secrets, Authenticator configs, Preferences) unreadable. Upgrade
+          Gateway to a build that includes AAP-75712 (2.7.20260801+ or
+          2.6.20260801+) before rotating the Gateway secret key.
+
+- name: Rotate Gateway with management command
+  when: __aap_secret_rotate_gw_has_rotate | bool
+  block:
+    - name: Stop component for Gateway (podman only)
+      ansible.builtin.include_tasks: "podman/stop_component.yml"
+      vars:
+        _component: "gateway"
+      when: aap_secret_rotate_deployment_type == 'podman'
+
+    - name: Start exec container for rotation of Gateway (podman)
+      ansible.builtin.command:
+        cmd: "podman start {{ __aap_secret_rotate_components.gateway.podman_container }}"
+      changed_when: true
+      when:
+        - aap_secret_rotate_deployment_type == 'podman'
+        - not aap_secret_rotate_dry_run
+
+    - name: Wait for exec container to be ready for Gateway (podman)
+      ansible.builtin.command:
+        cmd: "podman wait --condition=running {{ __aap_secret_rotate_components.gateway.podman_container }}"
+      changed_when: false
+      retries: 6
+      delay: 5
+      register: __aap_secret_rotate_gw_wait
+      until: __aap_secret_rotate_gw_wait.rc == 0
+      when:
+        - aap_secret_rotate_deployment_type == 'podman'
+        - not aap_secret_rotate_dry_run
+
+    # Workaround for upstream bug: the rotate_secret_key command reads
+    # AuthenticatorUser.extra_data via raw SQL without deserialising the
+    # jsonb string wrapper, so it cannot decrypt the value even with the
+    # correct key. Clearing these rows before rotation avoids the issue;
+    # they are automatically recreated on next user login.
+    - name: Clear AuthenticatorUser records before rotation (podman)
+      ansible.builtin.command:
+        cmd: >-
+          podman exec {{ __aap_secret_rotate_components.gateway.podman_container }}
+          aap-gateway-manage shell -c
+          "from django.db import connection;
+          c=connection.cursor();
+          c.execute('DELETE FROM dab_authentication_authenticatoruser');
+          print(f'Cleared {c.rowcount} AuthenticatorUser records')"
+      register: __aap_secret_rotate_gw_au_clear
+      changed_when: "'Cleared' in __aap_secret_rotate_gw_au_clear.stdout"
+      when:
+        - aap_secret_rotate_deployment_type == 'podman'
+        - not aap_secret_rotate_dry_run
+
+    - name: Clear AuthenticatorUser records before rotation (operator)
+      ansible.builtin.command:
+        cmd: >-
+          {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+          exec {{ __aap_secret_rotate_gw_pod.stdout }}
+          -c {{ __aap_secret_rotate_k8s_exec.gateway.container }}
+          -- aap-gateway-manage shell -c
+          "from django.db import connection;
+          c=connection.cursor();
+          c.execute('DELETE FROM dab_authentication_authenticatoruser');
+          print(f'Cleared {c.rowcount} AuthenticatorUser records')"
+      register: __aap_secret_rotate_gw_au_clear
+      changed_when: "'Cleared' in __aap_secret_rotate_gw_au_clear.stdout"
+      when:
+        - aap_secret_rotate_deployment_type == 'operator'
+        - not aap_secret_rotate_dry_run
+
+    - name: Display AuthenticatorUser cleanup result
+      ansible.builtin.debug:
+        msg: "{{ __aap_secret_rotate_gw_au_clear.stdout_lines | default(['No records to clear']) }}"
+      when: not aap_secret_rotate_dry_run
+
+    - name: Run rotation with custom key for Gateway
+      ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/exec_command.yml"
+      vars:
+        _component: "gateway"
+        _component_config: "{{ __aap_secret_rotate_components.gateway }}"
+        _exec_env:
+          GATEWAY_SECRET_KEY: "{{ __aap_secret_rotate_new_keys.gateway }}"
+        _exec_cmd: >-
+          aap-gateway-manage rotate_secret_key --use-custom-key
+          {{ '--dry-run' if aap_secret_rotate_dry_run else '' }}
+      when: __aap_secret_rotate_gw_use_custom | bool
+
+    - name: Run rotation with auto-generated key for Gateway
+      ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/exec_command.yml"
+      vars:
+        _component: "gateway"
+        _component_config: "{{ __aap_secret_rotate_components.gateway }}"
+        _exec_env: {}
+        _exec_cmd: >-
+          aap-gateway-manage rotate_secret_key
+          {{ '--dry-run' if aap_secret_rotate_dry_run else '' }}
+      when: not (__aap_secret_rotate_gw_use_custom | bool)
+
+    - name: Store Gateway exec result
+      ansible.builtin.set_fact:
+        __aap_secret_rotate_gw_result: "{{ __aap_secret_rotate_exec_result | default({}) }}"
+      when: not aap_secret_rotate_dry_run
+
+    - name: Display Gateway rotation output
+      ansible.builtin.debug:
+        msg: "{{ (__aap_secret_rotate_gw_result | default({})).stdout_lines | default([]) }}"
+      when: (__aap_secret_rotate_gw_result | default({})).stdout_lines | default([]) | length > 0
+
+    - name: Check rotation output for skipped values
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: Gateway rotation reported values that could not be decrypted
+          with the current key. These values were NOT re-encrypted and may need
+          manual remediation. Check the Gateway logs for details.
+      when:
+        - not aap_secret_rotate_dry_run
+        - >-
+          'could not be decrypted' in ((__aap_secret_rotate_gw_result | default({})).stderr | default(''))
+          or 'could not be decrypted' in ((__aap_secret_rotate_gw_result | default({})).stdout | default(''))
+
+    - name: Capture auto-generated Gateway key from command output
+      ansible.builtin.set_fact:
+        __aap_secret_rotate_new_keys: >-
+          {{ __aap_secret_rotate_new_keys | combine({
+               'gateway': __aap_secret_rotate_gw_result.stdout_lines | last | trim
+             }) }}
+      no_log: true
+      when:
+        - not aap_secret_rotate_dry_run
+        - not (__aap_secret_rotate_gw_use_custom | bool)
+        - __aap_secret_rotate_gw_result.stdout_lines | default([]) | length > 0
+
+    - name: Write new secret for Gateway
+      ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/write_secret.yml"
+      vars:
+        _component: "gateway"
+        _component_config: "{{ __aap_secret_rotate_components.gateway }}"
+        _secret_value: "{{ __aap_secret_rotate_new_keys.gateway }}"
+
+    - name: Restart component for Gateway (podman only)
+      ansible.builtin.include_tasks: "podman/restart_component.yml"
+      vars:
+        _component: "gateway"
+      when: aap_secret_rotate_deployment_type == 'podman'
+
+    - name: Rollout restart for Gateway (operator only)
+      ansible.builtin.include_tasks: "operator/rollout_restart.yml"
+      vars:
+        _component: "gateway"
+      when: aap_secret_rotate_deployment_type == 'operator'
+...

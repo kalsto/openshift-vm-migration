@@ -1,0 +1,9 @@
+---
+plugin: redhat.openshift_virtualization.kubevirt
+name: test
+namespaces:
+  - {{ NAMESPACE }}
+create_groups: true
+cache: true
+cache_plugin: ansible.builtin.jsonfile
+cache_connection: kubevirt-cache

@@ -1,0 +1,27 @@
+objects:
+  role:
+    aap_password_rotate:
+      description: Rotate passwords across AAP 2.7 components
+      name: aap_password_rotate
+      version_added: null
+    aap_secret_rotate:
+      description: Rotate SECRET_KEY across AAP 2.7 components
+      name: aap_secret_rotate
+      version_added: null
+plugins:
+  become: {}
+  cache: {}
+  callback: {}
+  cliconf: {}
+  connection: {}
+  filter: {}
+  httpapi: {}
+  inventory: {}
+  lookup: {}
+  module: {}
+  netconf: {}
+  shell: {}
+  strategy: {}
+  test: {}
+  vars: {}
+version: 4.0.0

@@ -1,0 +1,14 @@
+---
+- name: Get info on templates
+  community.vmware.vmware_guest_info:
+    datacenter: "{{ vcenter_datacenter }}"
+    folder: "{{ item }}"
+    name: "{{ template_name }}"
+  register: template_info
+
+- name: Check template
+  ansible.builtin.assert:
+    that:
+      - template_info.instance.hw_folder == "/" + vcenter_datacenter + "/vm/" + item
+      - template_info.instance.hw_is_template == true
+      - template_info.instance.hw_name == template_name

@@ -1,0 +1,31 @@
+---
+# Test playbook: AAP Secret Key Rotation (podman deployment)
+#
+# Usage:
+#   # Dry run (safe, no changes):
+#   ansible-playbook -i inventory test_podman.yml -e aap_secret_rotate_dry_run=true
+#
+#   # Full rotation:
+#   ansible-playbook -i inventory test_podman.yml
+#
+#   # Single component only:
+#   ansible-playbook -i inventory test_podman.yml \
+#     -e '{"aap_secret_rotate_components": ["controller"]}'
+#
+# Prerequisites:
+#   - Back up your AAP database before running without dry_run
+#   - Target host must have podman and a running AAP 2.7 containerised installation
+#   - SSH access with permissions to manage podman containers and secrets
+
+- name: AAP Secret Key Rotation (podman)
+  hosts: aap
+  gather_facts: true
+  become: true
+
+  vars:
+    aap_secret_rotate_deployment_type: "podman"
+    aap_secret_rotate_dry_run: true
+
+  roles:
+    - role: infra.aap_utilities.aap_secret_rotate
+...

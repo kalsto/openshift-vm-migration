@@ -1,0 +1,29 @@
+---
+# Restores ArgoCD auto-sync on the Application after rotation.
+# Only called when aap_secret_rotate_argocd_resume_after is true AND
+# auto-sync was previously enabled.
+
+- name: Restore ArgoCD auto-sync policy
+  kubernetes.core.k8s:
+    state: patched
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+    name: "{{ aap_secret_rotate_argocd_app_name }}"
+    namespace: "{{ aap_secret_rotate_argocd_app_namespace }}"
+    definition:
+      spec:
+        syncPolicy: "{{ __aap_secret_rotate_argocd_original_sync_policy }}"
+  when:
+    - not aap_secret_rotate_dry_run
+    - __aap_secret_rotate_argocd_had_auto_sync | default(false) | bool
+
+- name: Display ArgoCD sync restoration
+  ansible.builtin.debug:
+    msg: "ArgoCD auto-sync restored on Application '{{ aap_secret_rotate_argocd_app_name }}'."
+  when: __aap_secret_rotate_argocd_had_auto_sync | default(false) | bool
+
+- name: ArgoCD auto-sync was not previously enabled
+  ansible.builtin.debug:
+    msg: "ArgoCD auto-sync was not enabled before rotation; no action taken."
+  when: not (__aap_secret_rotate_argocd_had_auto_sync | default(false) | bool)
+...

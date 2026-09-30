@@ -1,0 +1,38 @@
+---
+# ============================================================
+# APPLIANCE_LOCALACCOUNTS_GLOBALPOLICY_INFO TESTS
+# ============================================================
+# This is a singleton endpoint (GET only, no list). The info module
+# returns the current global password policy as both `value` (dict)
+# and `info` (single-element list).
+
+# Test 1: Get the global policy
+- name: Get the global password policy
+  vmware.vmware_rest.appliance_localaccounts_globalpolicy_info: {}
+  register: global_policy
+
+- name: Assert global policy details
+  ansible.builtin.assert:
+    that:
+      - global_policy.value is defined
+      - global_policy.value.max_days == 90
+      - global_policy.value.min_days == 1
+      - global_policy.value.warn_days == 7
+      - global_policy.value.minimum_length == 8
+      - global_policy.value.managed_at_fleet == false
+      - global_policy.info is defined
+      - global_policy.info | length == 1
+      - global_policy.info[0].max_days == 90
+      - not global_policy.changed
+
+# Test 2: Check mode returns the same read-only result without error
+- name: Get the global password policy (check mode)
+  vmware.vmware_rest.appliance_localaccounts_globalpolicy_info: {}
+  check_mode: true
+  register: global_policy_check
+
+- name: Assert check mode reports no change for read-only info module
+  ansible.builtin.assert:
+    that:
+      - global_policy_check.value.max_days == 90
+      - not global_policy_check.changed

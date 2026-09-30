@@ -1,0 +1,110 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vCenter Floppy Mock",
+    "version": "9.1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{host}/api",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/vcenter/vm/{vm}/hardware/floppy": {
+      "parameters": [
+        {
+          "name": "vm",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "Vcenter.Vm.Hardware.Floppy_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": [
+                  {
+                    "floppy": "floppy-1001",
+                    "name": "my_floppy"
+                  },
+                  {
+                    "floppy": "floppy-1002",
+                    "name": "another-floppy"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vcenter/vm/{vm}/hardware/floppy/{floppy}": {
+      "parameters": [
+        {
+          "name": "vm",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "Vcenter.Vm.Hardware.Floppy_get",
+        "parameters": [
+          {
+            "name": "floppy",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "label": "Floppy drive 1",
+                  "backing": {
+                    "type": "IMAGE_FILE",
+                    "image_file": "[datastore1] floppies/boot.flp"
+                  },
+                  "state": "CONNECTED",
+                  "start_connected": true,
+                  "allow_guest_control": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

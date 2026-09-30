@@ -1,0 +1,20 @@
+---
+- name: Include Eco Vcenter Test Vars
+  ansible.builtin.include_vars:
+    file: eco-vcenter.yml
+
+- name: Gather guest info
+  vmware.vmware.vm_info:
+    validate_certs: false
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    port: "{{ vcenter_port }}"
+    guest_name: "{{ vm_name }}"
+  register: __res
+
+- name: Assert values
+  ansible.builtin.assert:
+    that:
+      - __res.changed == False
+      - __res.guests | length == guests_length

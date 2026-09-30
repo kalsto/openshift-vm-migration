@@ -1,0 +1,73 @@
+---
+# Pre-rotation verification orchestrator.
+# Runs component-specific preflight checks to verify all encrypted fields are
+# decryptable with the CURRENT key before attempting rotation.
+#
+# This catches:
+#   - Stale data from previous failed rotations
+#   - Manually modified keys that don't match encrypted data
+#   - Corrupted encrypted fields
+#
+# If any component fails preflight, the play is aborted unless
+# aap_secret_rotate_skip_preflight is set to true.
+
+- name: Display preflight check banner
+  ansible.builtin.debug:
+    msg: |-
+      ╔══════════════════════════════════════════════════════════════════╗
+      ║  Pre-rotation verification: checking all encrypted fields      ║
+      ║  are decryptable with the current key                          ║
+      ╚══════════════════════════════════════════════════════════════════╝
+
+- name: Run Controller preflight check
+  ansible.builtin.include_tasks: preflight_controller.yml
+  when: "'controller' in aap_secret_rotate_components"
+
+- name: Run Gateway preflight check
+  ansible.builtin.include_tasks: preflight_gateway.yml
+  when: "'gateway' in aap_secret_rotate_components"
+
+- name: Run EDA preflight check
+  ansible.builtin.include_tasks: preflight_eda.yml
+  when: "'eda' in aap_secret_rotate_components"
+
+- name: Run Hub preflight check
+  ansible.builtin.include_tasks: preflight_hub.yml
+  when: "'hub' in aap_secret_rotate_components"
+
+- name: Collect preflight results
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_preflight_failures: >-
+      {{
+        ([] if ('controller' not in aap_secret_rotate_components
+                or (__aap_secret_rotate_preflight_controller_ok | default(true) | bool))
+           else ['controller'])
+        + ([] if ('gateway' not in aap_secret_rotate_components
+                  or not (__aap_secret_rotate_gw_has_rotate | default(false) | bool)
+                  or (__aap_secret_rotate_preflight_gateway_ok | default(true) | bool))
+              else ['gateway'])
+        + ([] if ('eda' not in aap_secret_rotate_components
+                  or (__aap_secret_rotate_preflight_eda_ok | default(true) | bool))
+              else ['eda'])
+        + ([] if ('hub' not in aap_secret_rotate_components
+                  or (__aap_secret_rotate_preflight_hub_ok | default(true) | bool))
+              else ['hub'])
+      }}
+
+- name: Display preflight summary
+  ansible.builtin.debug:
+    msg: >-
+      Preflight verification {{ 'PASSED for all components' if
+        (__aap_secret_rotate_preflight_failures | length == 0) else
+        'FAILED for: ' ~ __aap_secret_rotate_preflight_failures | join(', ') }}
+
+- name: Fail if preflight detected undecryptable fields
+  ansible.builtin.fail:
+    msg: >-
+      PREFLIGHT FAILED: The following components have encrypted fields that cannot
+      be decrypted with the current key: {{ __aap_secret_rotate_preflight_failures | join(', ') }}.
+      This indicates stale data from a previous failed rotation or a mismatched key.
+      Resolve these issues before attempting rotation, or set
+      aap_secret_rotate_skip_preflight=true to bypass this check (NOT recommended).
+  when: __aap_secret_rotate_preflight_failures | length > 0
+...

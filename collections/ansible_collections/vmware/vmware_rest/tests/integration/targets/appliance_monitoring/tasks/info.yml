@@ -1,0 +1,101 @@
+---
+# ============================================================
+# APPLIANCE_MONITORING_INFO TESTS
+# ============================================================
+
+# Test 1: List monitored items when none are reported (empty list)
+- name: List monitored items (empty)
+  vmware.vmware_rest.appliance_monitoring_info: {}
+  register: list_empty
+
+- name: Assert empty list is returned
+  ansible.builtin.assert:
+    that:
+      - list_empty.info is defined
+      - list_empty.info | length == 0
+      - list_empty.value | length == 0
+      - not list_empty.changed
+
+# Test 2: Get a single monitored item by stat_id
+- name: Reset before get expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for get
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/default.json"
+      operationsAndResponses:
+        Appliance.Monitoring_get: "200"
+
+- name: Get monitored item by stat_id
+  vmware.vmware_rest.appliance_monitoring_info:
+    stat_id: cpu.util
+  register: get_by_id
+
+- name: Assert monitored item details are returned
+  ansible.builtin.assert:
+    that:
+      - get_by_id.value is defined
+      - get_by_id.value.id == 'cpu.util'
+      - get_by_id.value.name == 'CPU utilization'
+      - get_by_id.value.units == '%'
+      - get_by_id.value.category == 'cpu'
+      - get_by_id.value.description is defined
+      - get_by_id.info is defined
+      - get_by_id.info | length == 1
+      - get_by_id.info[0].id == 'cpu.util'
+      - not get_by_id.changed
+
+# Test 3: List multiple monitored items (list endpoint returns the full
+# monitored item objects, which the module returns as-is)
+- name: Reset before multiple list expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for multiple monitored items
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/list_multiple.json"
+      operationsAndResponses:
+        Appliance.Monitoring_list: "200"
+        Appliance.Monitoring_get: "200"
+
+- name: List monitored items (multiple)
+  vmware.vmware_rest.appliance_monitoring_info: {}
+  register: list_multiple
+
+- name: Assert multiple monitored items are returned
+  ansible.builtin.assert:
+    that:
+      - list_multiple.info is defined
+      - list_multiple.info | length == 2
+      - list_multiple.value | length == 2
+      - list_multiple.info | map(attribute='id') | list | sort == ['cpu.util', 'mem.util']
+      - list_multiple.info[0].units is defined
+      - list_multiple.info[0].category is defined
+      - not list_multiple.changed
+
+# Test 4: Check mode returns the same read-only result without error
+- name: List monitored items (check mode)
+  vmware.vmware_rest.appliance_monitoring_info: {}
+  check_mode: true
+  register: list_check
+
+- name: Assert check mode reports no change for read-only info module
+  ansible.builtin.assert:
+    that:
+      - list_check.info | length == 2
+      - not list_check.changed

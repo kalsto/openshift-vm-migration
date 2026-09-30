@@ -1,0 +1,53 @@
+---
+- name: Verify inventory
+  connection: local
+  gather_facts: false
+  hosts: localhost
+  tasks:
+    - name: Read empty inventory
+      ansible.builtin.include_vars:
+        file: empty.yml
+        name: inv_empty
+    - name: Assert empty inventory
+      ansible.builtin.assert:
+        that:
+          - inv_empty['all'] is not defined or inv_empty['all']['children']['test']['children']['namespace_{{ NAMESPACE | replace("-", "_") }}']['hosts'] is not defined
+    - name: Read inventory after VM creation
+      ansible.builtin.include_vars:
+        file: all.yml
+        name: inv_all
+    - name: Assert all expected hosts were discovered
+      ansible.builtin.assert:
+        that:
+          - inv_all['all']['children']['label_app_test']['hosts'] | length == 1
+          - inv_all['all']['children']['label_foo_bar']['hosts'] | length == 1
+          - "'{{ NAMESPACE }}-testvm-stopped' in inv_all['all']['children']['test']['children']['namespace_{{ NAMESPACE | replace("-", "_") }}']['hosts']"
+    - name: Read filtered inventory
+      ansible.builtin.include_vars:
+        file: label.yml
+        name: inv_label
+    - name: Assert one instance with selected label
+      ansible.builtin.assert:
+        that:
+          - inv_label['all']['children']['label_app_test']['hosts'] | length == 1
+    - name: Read filtered inventory
+      ansible.builtin.include_vars:
+        file: net.yml
+        name: inv_net
+    - name: Assert one instance with selected network
+      ansible.builtin.assert:
+        that:
+          - inv_net['all']['children']['label_app_test']['hosts'] | length == 1
+    - name: Read cached inventory after VM creation
+      ansible.builtin.include_vars:
+        file: cache_before.yml
+        name: inv_cache_before
+    - name: Read cached inventory after VM deletion
+      ansible.builtin.include_vars:
+        file: cache_after.yml
+        name: inv_cache_after
+    - name: Assert cached inventories are populated
+      ansible.builtin.assert:
+        that:
+          - inv_cache_before == inv_all
+          - inv_cache_before == inv_cache_after

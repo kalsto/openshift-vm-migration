@@ -1,0 +1,41 @@
+---
+# Post-rotation verification for Automation Gateway.
+# Uses the --dry-run flag of rotate_secret_key to confirm all encrypted fields
+# are decryptable with the new key (expects 0 items needing rotation).
+
+- name: Run Gateway postflight dry-run
+  ansible.builtin.command:
+    cmd: >-
+      {% if aap_secret_rotate_deployment_type == 'podman' %}
+      podman exec {{ __aap_secret_rotate_components.gateway.podman_container }}
+      {% else %}
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      exec deploy/{{ __aap_secret_rotate_k8s_exec.gateway.deployment }}
+      -c {{ __aap_secret_rotate_k8s_exec.gateway.container }}
+      --
+      {% endif %}
+      aap-gateway-manage rotate_secret_key --dry-run
+  register: __aap_secret_rotate_postflight_gateway_result
+  changed_when: false
+  failed_when: false
+
+- name: Evaluate Gateway postflight result
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_postflight_gateway_ok: >-
+      {{ (__aap_secret_rotate_postflight_gateway_result.rc | default(0)) == 0
+         and 'could not be decrypted' not in (__aap_secret_rotate_postflight_gateway_result.stdout | default(''))
+         and 'could not be decrypted' not in (__aap_secret_rotate_postflight_gateway_result.stderr | default(''))
+         and 'DecryptionError' not in (__aap_secret_rotate_postflight_gateway_result.stderr | default('')) }}
+
+- name: Display Gateway postflight result
+  ansible.builtin.debug:
+    msg: "Gateway postflight: {{ 'PASSED' if (__aap_secret_rotate_postflight_gateway_ok | bool) else 'FAILED' }}"
+
+- name: Display Gateway postflight errors
+  ansible.builtin.debug:
+    msg: |-
+      Gateway has encrypted fields that cannot be decrypted with the NEW key:
+      stdout: {{ __aap_secret_rotate_postflight_gateway_result.stdout | default('') }}
+      stderr: {{ __aap_secret_rotate_postflight_gateway_result.stderr | default('') }}
+  when: not (__aap_secret_rotate_postflight_gateway_ok | bool)
+...

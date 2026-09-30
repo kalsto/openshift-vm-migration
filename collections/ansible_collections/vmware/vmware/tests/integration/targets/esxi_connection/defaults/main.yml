@@ -1,0 +1,4 @@
+---
+test_esxi_hostname: "{{ tiny_prefix }}_esxi_connection"
+test_resource_pool: "{{ tiny_prefix }}_esxi_connection_rp"
+test_cluster: "{{ vcenter_cluster_name }}"

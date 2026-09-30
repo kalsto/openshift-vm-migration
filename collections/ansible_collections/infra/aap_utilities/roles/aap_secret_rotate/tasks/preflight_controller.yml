@@ -1,0 +1,61 @@
+---
+# Pre-rotation verification for Automation Controller.
+# Attempts to decrypt all Credential inputs and NotificationTemplate configs
+# using the current SECRET_KEY. Fails if any field is undecryptable (indicating
+# stale data from a previous failed rotation or manual key change).
+
+- name: Run Controller preflight verification
+  ansible.builtin.shell: |
+    {% if aap_secret_rotate_deployment_type == 'podman' %}
+    podman exec {{ __aap_secret_rotate_components.controller.podman_container }} \
+    {% else %}
+    {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }} \
+      exec deploy/{{ __aap_secret_rotate_k8s_exec.controller.deployment }} \
+      -c {{ __aap_secret_rotate_k8s_exec.controller.container }} -- \
+    {% endif %}
+      awx-manage shell -c "
+    from awx.main.models import Credential, NotificationTemplate
+    from awx.main.utils.encryption import decrypt_field
+    failed = []
+    for c in Credential.objects.all():
+        for field in c.credential_type.defined_fields:
+            if field in c.inputs:
+                try:
+                    decrypt_field(c, field)
+                except Exception as e:
+                    failed.append(f'Credential({c.pk}).{field}: {e}')
+    for nt in NotificationTemplate.objects.all():
+        try:
+            for key, val in nt.notification_configuration.items():
+                pass
+        except Exception as e:
+            failed.append(f'NotificationTemplate({nt.pk}): {e}')
+    print('PREFLIGHT_FAIL' if failed else 'PREFLIGHT_OK')
+    for f in failed:
+        print(f'  {f}')
+    "
+  args:
+    executable: /bin/bash
+  register: __aap_secret_rotate_preflight_controller_result
+  changed_when: false
+  failed_when: false
+
+- name: Evaluate Controller preflight result
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_preflight_controller_ok: >-
+      {{ 'PREFLIGHT_OK' in (__aap_secret_rotate_preflight_controller_result.stdout | default('')) }}
+    __aap_secret_rotate_preflight_controller_failed_fields: >-
+      {{ __aap_secret_rotate_preflight_controller_result.stdout_lines | default([])
+         | select('match', '^ ') | list }}
+
+- name: Display Controller preflight result
+  ansible.builtin.debug:
+    msg: "Controller preflight: {{ 'PASSED' if (__aap_secret_rotate_preflight_controller_ok | bool) else 'FAILED' }}"
+
+- name: Display Controller preflight failures
+  ansible.builtin.debug:
+    msg: |-
+      Controller has encrypted fields that cannot be decrypted with the current key:
+      {{ __aap_secret_rotate_preflight_controller_failed_fields | join('\n') }}
+  when: not (__aap_secret_rotate_preflight_controller_ok | bool)
+...

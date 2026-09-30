@@ -1,0 +1,43 @@
+download_url: https://console.redhat.com/api/automation-hub/v3/plugin/ansible/content/published/collections/artifacts/ansible-controller-4.8.9.tar.gz
+format_version: 1.0.0
+name: controller
+namespace: ansible
+server: https://console.redhat.com/api/automation-hub/content/published/
+signatures:
+- pubkey_fingerprint: 39B5D759361A97464C564A8FE1A4BD708A828AAD
+  pulp_created: '2026-09-14T12:46:45.559145Z'
+  signature: '-----BEGIN PGP SIGNATURE-----
+
+
+    iQIcBAABCAAGBQJqp+yzAAoJEOGkvXCKgoqtknkP/jCBSd9Dr/6siBBXQ8Q2ytyg
+
+    sQyYQtzO75tmf2xztG7Yu3WrisgwHfqsn1U+UA9hR61DA2y9+esjxYWkhPFNxevB
+
+    D/1oNg7A7cpq0IE9IHgEFbaQlvuDEF33p1VfTuQqkFK3EXYbvlWf8/Ebrvyq/G9W
+
+    4H4LyG+NWpIAMQklcFNeFknsTYeiak1LCQpetCzt/rnkZM1/88QWPHD8I+HMwDaE
+
+    xGSv0oWexg+H2MuSXtS5m7qBWWlkI1HR90ki10LThhzUq8VrnMGf0+de4j0ZxoxI
+
+    TP0jxLVZBD68IyMHu2IyK49kKYJgj8yKn3inNMPXzNjAXnG8N1DaaSgxhfQB5l3l
+
+    kWwAG0jupXQn+mO1QIGKAyi8GdmyR3AATEhsroTFe+pHJjl8k44Y9ZDcdDDP49dx
+
+    teJeSn+Cxq7dmcLgDMK5otetdVK0vC0mzM/dUYQhDWFz/6aKr1RnpIOkhZrhqap7
+
+    7Yke0ZskMznitC4FKl5XV2J2B44tusTg+xamfC7YGyuEvCh4qeG/y4AWdoAyrFAK
+
+    9tqqfqsSTLbDW+DDbKjgdRSgu8rxAykpeOXIowc0C8/Ay2lcGNhBdkUL8j9SkMPx
+
+    H2vnxwfU894tT3ITbWMpDWbKQMn9O9dXRPedn2IOCNTUmEqH/vpaHT7aDrlweNgw
+
+    HohguxH6tk82a02pxHT6
+
+    =xeXS
+
+    -----END PGP SIGNATURE-----
+
+    '
+  signing_service: null
+version: 4.8.9
+version_url: /api/automation-hub/content/published/v3/plugin/ansible/content/published/collections/index/ansible/controller/versions/4.8.9/

@@ -1,0 +1,104 @@
+---
+argument_specs:
+  main:
+    short_description: Rotate SECRET_KEY across AAP 2.7 components
+    description:
+      - Rotates database encryption keys for Ansible Automation Platform 2.7 components.
+      - Supports both podman (containerised installer) and operator (Kubernetes/OpenShift) deployments.
+      - Covers Automation Controller, Gateway, Event-Driven Ansible, and Automation Hub.
+    options:
+      aap_secret_rotate_components:
+        description: List of components to rotate. Order matters.
+        type: list
+        elements: str
+        default:
+          - controller
+          - hub
+          - eda
+          - gateway
+      aap_secret_rotate_deployment_type:
+        description: Deployment type. Auto-detected if empty.
+        type: str
+        choices:
+          - podman
+          - operator
+          - ""
+        default: ""
+      aap_secret_rotate_dry_run:
+        description: Report what would change without writing.
+        type: bool
+        default: false
+      aap_secret_rotate_backup_dir:
+        description: Directory on the control node for key backups.
+        type: str
+      aap_secret_rotate_controller_key:
+        description: Custom key for Controller. Auto-generated if empty.
+        type: str
+        default: ""
+      aap_secret_rotate_gateway_key:
+        description: Custom key for Gateway. Auto-generated if empty.
+        type: str
+        default: ""
+      aap_secret_rotate_eda_key:
+        description: Custom key for EDA. Auto-generated if empty.
+        type: str
+        default: ""
+      aap_secret_rotate_hub_key:
+        description: Custom key for Hub. Auto-generated if empty.
+        type: str
+        default: ""
+      aap_secret_rotate_namespace:
+        description: Kubernetes namespace (operator deployments).
+        type: str
+        default: aap
+      aap_secret_rotate_cr_name:
+        description: AnsibleAutomationPlatform CR name (operator deployments).
+        type: str
+        default: aap
+      aap_secret_rotate_eso_managed:
+        description: >-
+          Whether secrets are managed by External Secrets Operator.
+          Auto-detected if empty. When true, ExternalSecret resources are
+          paused before patching K8s Secrets.
+        type: str
+        default: ""
+      aap_secret_rotate_eso_resume_after:
+        description: >-
+          Whether to resume ESO reconciliation after rotation. If false,
+          ExternalSecrets stay paused until the external store is updated.
+        type: bool
+        default: false
+      aap_secret_rotate_argocd_managed:
+        description: >-
+          Whether the AAP deployment is managed by ArgoCD. Auto-detected
+          if empty. When true, auto-sync is suspended during rotation.
+        type: str
+        default: ""
+      aap_secret_rotate_argocd_app_name:
+        description: >-
+          ArgoCD Application name managing the AAP namespace.
+          Auto-detected if empty.
+        type: str
+        default: ""
+      aap_secret_rotate_argocd_app_namespace:
+        description: >-
+          Namespace where the ArgoCD Application CR lives.
+          Auto-detected by searching all namespaces for an Application
+          targeting the AAP namespace. Override with e.g. argocd or
+          openshift-gitops if cluster-wide listing is restricted.
+        type: str
+        default: ""
+      aap_secret_rotate_kubectl_binary:
+        description: >-
+          Path to a kubectl-compatible CLI binary. Auto-detected if empty
+          (tries kubectl, falls back to oc). Works with any Kubernetes
+          distribution.
+        type: str
+        default: ""
+      aap_secret_rotate_argocd_resume_after:
+        description: >-
+          Whether to resume ArgoCD auto-sync after rotation. If false,
+          the Application stays suspended until the Git repo is updated.
+        type: bool
+        default: false
+...

@@ -1,0 +1,37 @@
+---
+# Triggers a rollout restart for all deployments of a given component
+# so that pods pick up the updated K8s Secret values.
+# Required vars: _component
+
+- name: Rollout restart deployments for {{ _component }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      rollout restart deployment/{{ item }}
+  loop: "{{ __aap_secret_rotate_k8s_deployments[_component] }}"
+  register: __aap_secret_rotate_rollout_result
+  failed_when:
+    - __aap_secret_rotate_rollout_result.rc != 0
+    - "'not found' not in (__aap_secret_rotate_rollout_result.stderr | default('') | lower)"
+  changed_when: __aap_secret_rotate_rollout_result.rc == 0
+  when: not aap_secret_rotate_dry_run
+
+- name: Wait for rollout to complete for {{ _component }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      rollout status deployment/{{ item }}
+      --timeout={{ aap_secret_rotate_rollout_timeout }}s
+  loop: "{{ __aap_secret_rotate_k8s_deployments[_component] }}"
+  register: __aap_secret_rotate_rollout_status
+  failed_when:
+    - __aap_secret_rotate_rollout_status.rc != 0
+    - "'not found' not in (__aap_secret_rotate_rollout_status.stderr | default('') | lower)"
+  changed_when: false
+  when: not aap_secret_rotate_dry_run
+
+- name: Dry run - would rollout restart for {{ _component }}
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would rollout restart: {{ __aap_secret_rotate_k8s_deployments[_component] | join(', ') }}"
+  when: aap_secret_rotate_dry_run
+...

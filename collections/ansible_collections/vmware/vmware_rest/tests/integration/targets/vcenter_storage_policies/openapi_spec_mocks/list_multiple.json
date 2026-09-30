@@ -1,0 +1,67 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vCenter Policies Mock",
+    "version": "9.1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{host}/api",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/vcenter/storage/policies": {
+      "get": {
+        "operationId": "Vcenter.Storage.Policies_list",
+        "parameters": [
+          {
+            "name": "policies",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array"
+                },
+                "example": [
+                  {
+                    "policy": "aa6d5a82-1c88-45da-85d3-3d74b91a5bad",
+                    "name": "VM Storage Policy",
+                    "description": "Storage policy for virtual machine workloads"
+                  },
+                  {
+                    "policy": "9b0e68e6-54cf-4b59-9e53-8a8e0b45c4d2",
+                    "name": "High Performance Policy",
+                    "description": "Storage policy for high-performance applications"
+                  }
+                ]
+              }
+            }
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

@@ -1,0 +1,303 @@
+---
+- name: Lookup Root Resource Pool ID
+  ansible.builtin.set_fact:
+    vcenter_rp_id: >-
+      {{ lookup('vmware.vmware.moid_from_path', '/' + vcenter_datacenter +
+      '/host/' + vcenter_cluster_name + '/' + vcenter_resource_pool,
+      **vmware_rest_auth_vars) }}
+
+- name: Test
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Create a test resource pool
+      vmware.vmware_rest.vcenter_resourcepool:
+        name: "{{ test_resource_pool }}"
+        parent: "{{ vcenter_rp_id }}"
+      register: _test_rp
+
+    - name: Deploy Virtual Machine from template in content library
+      community.vmware.vmware_content_deploy_template:
+        template: "{{ rhel9_content_library_template }}"
+        datastore: "{{ datastore }}"
+        folder: "{{ vm_folder }}"
+        datacenter: "{{ vm_datacenter }}"
+        name: "{{ vm }}"
+        resource_pool: "{{ test_resource_pool }}"
+        cluster: "{{ vm_cluster }}"
+        state: present
+
+    - name: Set the state of a virtual machine to poweredon
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: powered-on
+      register: deploy
+
+    - name: Wait for the virtual machine to power on
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOn"
+      retries: 60
+      delay: 5
+
+    - name: Restart the virtual machine
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: restarted
+
+    - name: Wait for the virtual machine to power on
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOn"
+      retries: 60
+      delay: 5
+
+    - name: Power on a virtual machine with the question_answers param
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        question_answers:
+          - question: "msg.uuid.altered"
+            response: "button.uuid.copiedTheVM"
+        state: powered-on
+
+    - name: Wait for the virtual machine to power on
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOn"
+      retries: 60
+      delay: 5
+
+    - name: Set the state of a virtual machine to poweroff using MoID
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        moid: "{{ deploy.vm.moid }}"
+        state: powered-off
+
+    - name: Wait for the virtual machine to power off
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOff"
+      retries: 60
+      delay: 5
+
+    - name: Set the state of a virtual machine to poweron using MoID
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        moid: "{{ deploy.vm.moid }}"
+        state: powered-on
+
+    - name: Wait for the virtual machine to power on
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOn"
+      retries: 60
+      delay: 5
+
+    - name: Suspend the virtual machine
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: suspended
+
+    - name: Wait for the virtual machine to be suspended
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "suspended"
+      retries: 60
+      delay: 5
+
+    - name: Power on the virtual machine without force
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: powered-on
+      ignore_errors: true
+      register: failed_power_on
+
+    - name: Verify power on failed
+      ansible.builtin.assert:
+        that:
+          - failed_power_on.failed
+
+    - name: Power on the virtual machine with force
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: powered-on
+        force: true
+
+    - name: Wait for the virtual machine to power on
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOn"
+      retries: 60
+      delay: 5
+
+    - name: Set the state of a virtual machine to poweroff at given scheduled time
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: powered-off
+        scheduled_at: "{{ '%d/%m/%Y %H:%M' | strftime((now().strftime('%s') | int) + 180) }}"
+        scheduled_task_name: "task_001"
+        scheduled_task_description: "Sample task to poweroff VM"
+        scheduled_task_enabled: true
+
+    - name: Wait for the virtual machine to power off
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOff"
+      retries: 60
+      delay: 5
+
+    - name: Set the state of a virtual machine to poweron using MoID
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        moid: "{{ deploy.vm.moid }}"
+        state: powered-on
+
+    - name: Wait until VM is ready
+      vmware.vmware_rest.vcenter_vm_tools_info:
+        vm: "{{ deploy.vm.moid }}"
+      register: vm_tools_info
+      until:
+        - vm_tools_info is not failed
+        - vm_tools_info.value.run_state == "RUNNING"
+      retries: 60
+      delay: 5
+
+    - name: Shutdown virtual machine
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        name: "{{ vm }}"
+        state: shutdown-guest
+
+    - name: Wait for the virtual machine to shutdown
+      community.vmware.vmware_vm_info:
+        vm_name: "{{ vm }}"
+      register: vm_info
+      until:
+        - vm_info is not failed
+        - vm_info.virtual_machines[0].power_state == "poweredOff"
+      retries: 60
+      delay: 5
+
+    - name: Set the state of a virtual machine to poweredon
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: powered-on
+      register: deploy
+
+    - name: Wait until VM is ready
+      vmware.vmware_rest.vcenter_vm_tools_info:
+        vm: "{{ deploy.vm.moid }}"
+      register: vm_tools_info
+      until:
+        - vm_tools_info is not failed
+        - vm_tools_info.value.run_state == "RUNNING"
+      retries: 60
+      delay: 5
+
+    - name: Shutdown the guest and wait for it to power off
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: shutdown-guest
+        timeout: 600
+      register: shutdown_guest
+
+    - name: Gather VM info immediately after shutdown-guest returns
+      vmware.vmware.vm_info:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+      register: post_shutdown_info
+
+    # No until/retries here on purpose. If the module honored the timeout and
+    # waited for the guest to power off, the VM must already be poweredOff by
+    # the time control returns to Ansible.
+    - name: Verify the module waited for the guest to power off
+      ansible.builtin.assert:
+        that:
+          - shutdown_guest.changed
+          - post_shutdown_info.guests[0].hw_power_status == "poweredOff"
+
+    - name: Power the virtual machine back on
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: powered-on
+
+    - name: Wait until VM is ready again
+      vmware.vmware_rest.vcenter_vm_tools_info:
+        vm: "{{ deploy.vm.moid }}"
+      register: vm_tools_info
+      until:
+        - vm_tools_info is not failed
+        - vm_tools_info.value.run_state == "RUNNING"
+      retries: 60
+      delay: 5
+
+    - name: Reboot the virtual machine with force
+      vmware.vmware.vm_powerstate:
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        name: "{{ vm }}"
+        state: reboot-guest
+        force: true
+
+  always:
+    - name: Delete test resource pool
+      vmware.vmware_rest.vcenter_resourcepool:
+        resource_pool: "{{ _test_rp.id }}"
+        state: absent
+
+    - name: "Test teardown: Destroy VM guest {{ vm }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vm_cluster }}"
+        datacenter: "{{ vm_datacenter }}"
+        folder: "{{ vm_folder }}"
+        state: absent
+        force: true
+        name: "{{ vm }}"

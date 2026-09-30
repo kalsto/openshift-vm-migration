@@ -1,0 +1,31 @@
+---
+- name: Test Inventory Plugin
+  gather_facts: false
+  hosts: localhost
+  roles:
+    - prepare_test_vars
+
+  tasks:
+    - debug:
+        var: groups
+
+    - name: Check groups
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((groups.poweredOff | default([])) | length) ==
+            (hostvars.values() | selectattr('summary.runtime.powerState', 'equalto', 'poweredOff') | default([]) | length)
+          - groups | length >= 5 # at least powerstates + each tier of the folder path
+          - ('test_' + vcenter_datacenter | replace('-', '_')) in groups
+
+    - name: Check First Host
+      ansible.builtin.assert:
+        that:
+          - first_host.ansible_host is regex('^[\d+\.]+$') or first_host.ansible_host is regex('^[(\w{3}|\w{4}):]+$')
+          - first_host.tags is not defined
+          - first_host.vmware_inventory_tags is defined and first_host.vmware_inventory_tags is mapping
+          - first_host.tags_by_category is defined and first_host.tags_by_category is mapping
+          - first_host.cluster.name is defined
+          - first_host.esxi_host.name is defined
+      vars:
+        first_host: "{{ hostvars.values() | selectattr('summary.runtime.powerState', 'equalto', 'poweredOn') | first }}"

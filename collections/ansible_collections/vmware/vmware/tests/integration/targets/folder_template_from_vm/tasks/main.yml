@@ -1,0 +1,91 @@
+---
+- name: Test On VCenter
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+
+    - name: "Test setup: Create Folders"
+      vmware.vmware.folder:
+        datacenter: "{{ vcenter_datacenter }}"
+        relative_path: "{{ item }}"
+        folder_type: vm
+        state: present
+      loop: "{{ template_folders }}"
+
+    - name: "Test setup: Create VM guest {{ vm_name }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vcenter_cluster_name }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: "{{ vm_folder }}"
+        state: poweredon
+        name: "{{ vm_name }}"
+        disk: "{{ vm_disk }}"
+        guest_id: "{{ vm_guest_id }}"
+        hardware: "{{ vm_hardware }}"
+
+    - name: "Test setup: Power off VM guest {{ vm_name }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vcenter_cluster_name }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: "{{ vm_folder }}"
+        state: poweredoff
+        name: "{{ vm_name }}"
+
+    - name: Create templates from vm in vcenter folders
+      vmware.vmware.folder_template_from_vm:
+        datacenter: "{{ vcenter_datacenter }}"
+        template_folder: "{{ item }}"
+        vm_name: "{{ vm_name }}"
+        template_name: "{{ template_name }}"
+      loop: "{{ template_folders }}"
+      register: __res
+
+    - name: Verify template creation
+      ansible.builtin.include_tasks:
+        file: verify_template_creation.yml
+      loop: "{{ template_folders }}"
+
+    - name: Destroy template
+      vmware.vmware.folder_template_from_vm:
+        datacenter: "{{ vcenter_datacenter }}"
+        template_folder: "{{ item }}"
+        vm_name: "{{ vm_name }}"
+        template_name: "{{ template_name }}"
+        state: absent
+      loop: "{{ template_folders }}"
+
+    - name: Verify template deletion
+      ansible.builtin.include_tasks:
+        file: verify_template_deletion.yml
+      loop: "{{ template_folders }}"
+
+  always:
+    - name: "Test teardown: Destroy VM guest {{ vm_name }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vcenter_cluster_name }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: "{{ vm_folder }}"
+        state: absent
+        force: true
+        name: "{{ vm_name }}"
+
+    - name: "Test teardown: Destroy VM template from folder"
+      community.vmware.vmware_guest:
+        cluster: "{{ vcenter_cluster_name }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        folder: "{{ item }}"
+        state: absent
+        force: true
+        name: "{{ template_name }}"
+      loop: "{{ template_folders }}"
+
+    - name: "Test teardown: Delete Folder"
+      vmware.vmware.folder:
+        datacenter: "{{ vcenter_datacenter }}"
+        relative_path: "{{ item }}"
+        folder_type: vm
+        state: absent
+      loop: "{{ template_folders }}"

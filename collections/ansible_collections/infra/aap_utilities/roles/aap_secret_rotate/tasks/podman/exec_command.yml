@@ -1,0 +1,30 @@
+---
+# Executes a management command inside a running podman container.
+# Required vars: _component, _component_config, _exec_env (dict), _exec_cmd (string)
+
+- name: Execute rotation command in container for {{ _component }}
+  ansible.builtin.command:
+    cmd: >-
+      podman exec
+      {% for key, value in _exec_env.items() %}
+      -e {{ key }}={{ value }}
+      {% endfor %}
+      {{ _component_config.podman_container }}
+      {{ _exec_cmd }}
+  register: __aap_secret_rotate_exec_result
+  changed_when: true
+  no_log: true
+  when: not aap_secret_rotate_dry_run
+
+- name: Display command output for {{ _component }}
+  ansible.builtin.debug:
+    msg: "{{ __aap_secret_rotate_exec_result.stdout_lines | default([]) }}"
+  when:
+    - not aap_secret_rotate_dry_run
+    - __aap_secret_rotate_exec_result.stdout_lines | default([]) | length > 0
+
+- name: Dry run - would execute rotation command for {{ _component }}
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would run '{{ _exec_cmd }}' in container '{{ _component_config.podman_container }}'"
+  when: aap_secret_rotate_dry_run
+...

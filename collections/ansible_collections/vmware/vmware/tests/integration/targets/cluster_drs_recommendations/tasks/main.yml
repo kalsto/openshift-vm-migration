@@ -1,0 +1,27 @@
+---
+- name: Test On VCenter
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+    - name: Create Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+    - name: Enable DRS Settings In Test Cluster
+      vmware.vmware.cluster_drs:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        enable: true
+    - name: Apply Recommendations
+      vmware.vmware.cluster_drs_recommendations:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+  always:
+    - name: Destroy Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+        state: absent

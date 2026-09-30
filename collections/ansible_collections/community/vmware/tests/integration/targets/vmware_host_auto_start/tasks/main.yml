@@ -1,0 +1,65 @@
+# Test code for the vmware_host_auto_start Operations.
+# Copyright: (c) 2019, sky-joker <sky.jokerxx@gmail.com>
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+- name: Run tests and clean up
+  block:
+    - import_role:
+        name: prepare_vmware_tests
+      vars:
+        setup_attach_host: true
+        setup_datastore: true
+
+    - name: Move the ESXi hosts out of the cluster
+      vmware.vmware.esxi_host:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: false
+        datacenter: "{{ dc1 }}"
+        folder: '/DC0/host'
+        esxi_host_name: "{{ item }}"
+        esxi_username: '{{ esxi_user }}'
+        esxi_password: '{{ esxi_password }}'
+        state: present
+      with_items: "{{ esxi_hosts }}"
+
+    - name: Disable the Maintenance Mode
+      vmware.vmware.esxi_maintenance_mode:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: false
+        esxi_host_name: "{{ item }}"
+        enable_maintenance_mode: false
+      with_items: "{{ esxi_hosts }}"
+
+    - name: Create VM on esxi1
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        datacenter: "{{ dc1 }}"
+        validate_certs: false
+        name: '{{ item }}'
+        folder: vm
+        esxi_hostname: "{{ esxi1 }}"
+        state: present
+        guest_id: debian8_64Guest
+        disk:
+        - size_gb: 1
+          type: thin
+          datastore: '{{ rw_datastore }}'
+        hardware:
+          version: 11
+          memory_mb: 1024
+          num_cpus: 1
+          scsi: paravirtual
+      with_items: ['test_vm1', 'test_vm2']
+
+    - include_tasks: reset_auto_start_config.yml
+    - include_tasks: vcenter_auto_start_ops.yml
+    - include_tasks: reset_auto_start_config.yml
+    - include_tasks: esxi_auto_start_ops.yml
+  always:
+    - include_tasks: reset_auto_start_config.yml

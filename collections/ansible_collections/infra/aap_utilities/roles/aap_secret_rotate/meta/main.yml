@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  author: Alexey Masolov
+  description: Rotate SECRET_KEY across all Ansible Automation Platform 2.7 components
+  company: Red Hat
+
+  license: GPL-3.0-or-later
+
+  min_ansible_version: "2.15"
+
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+
+  galaxy_tags:
+    - aap
+    - security
+    - encryption
+
+dependencies: []
+...

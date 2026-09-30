@@ -1,0 +1,43 @@
+---
+####################################################################
+# WARNING: These are designed specifically for Ansible tests       #
+# and should not be used as examples of how to write Ansible roles #
+####################################################################
+
+# Copyright (c) Ansible Project
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: test apache2_module
+  when: ansible_facts.os_family in ['Debian', 'Suse']
+  # CentOS/RHEL does not have a2enmod/a2dismod
+  block:
+    - name: get list of enabled modules
+      ansible.builtin.shell: apache2ctl -M | sort
+      register: modules_before
+    - name: include only on supported systems
+      ansible.builtin.include_tasks: actualtest.yml
+  always:
+    - name: get list of enabled modules
+      ansible.builtin.shell: apache2ctl -M | sort
+      register: modules_after
+    - name: modules_before
+      ansible.builtin.debug:
+        var: modules_before
+    - name: modules_after
+      ansible.builtin.debug:
+        var: modules_after
+    - name: ensure that all test modules are disabled again
+      ansible.builtin.assert:
+        that: modules_before.stdout == modules_after.stdout
+
+- name: Debian-only tests
+  when: ansible_facts.os_family == 'Debian'
+  # Suse has mpm_event module compiled within the base apache2,
+  # and its sites-enabled layout differs from Debian's
+  block:
+    - name: include misleading warning test
+      ansible.builtin.include_tasks: 635-apache2-misleading-warning.yml
+
+    - name: include unrelated broken config test
+      ansible.builtin.include_tasks: 4592-ignore-configcheck-unrelated-broken-config.yml

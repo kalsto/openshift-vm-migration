@@ -1,0 +1,40 @@
+---
+# Post-rotation verification for Event-Driven Ansible.
+# Uses the --dry-run flag of rotate_db_encryption_key to confirm all encrypted
+# fields are decryptable with the new key (expects 0 items needing rotation).
+
+- name: Run EDA postflight dry-run
+  ansible.builtin.command:
+    cmd: >-
+      {% if aap_secret_rotate_deployment_type == 'podman' %}
+      podman exec {{ __aap_secret_rotate_components.eda.podman_container }}
+      {% else %}
+      {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }}
+      exec deploy/{{ __aap_secret_rotate_k8s_exec.eda.deployment }}
+      -c {{ __aap_secret_rotate_k8s_exec.eda.container }}
+      --
+      {% endif %}
+      aap-eda-manage rotate_db_encryption_key --dry-run
+  register: __aap_secret_rotate_postflight_eda_result
+  changed_when: false
+  failed_when: false
+
+- name: Evaluate EDA postflight result
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_postflight_eda_ok: >-
+      {{ (__aap_secret_rotate_postflight_eda_result.rc | default(0)) == 0
+         and 'could not be decrypted' not in (__aap_secret_rotate_postflight_eda_result.stdout | default(''))
+         and 'DecryptionError' not in (__aap_secret_rotate_postflight_eda_result.stderr | default('')) }}
+
+- name: Display EDA postflight result
+  ansible.builtin.debug:
+    msg: "EDA postflight: {{ 'PASSED' if (__aap_secret_rotate_postflight_eda_ok | bool) else 'FAILED' }}"
+
+- name: Display EDA postflight errors
+  ansible.builtin.debug:
+    msg: |-
+      EDA has encrypted fields that cannot be decrypted with the NEW key:
+      stdout: {{ __aap_secret_rotate_postflight_eda_result.stdout | default('') }}
+      stderr: {{ __aap_secret_rotate_postflight_eda_result.stderr | default('') }}
+  when: not (__aap_secret_rotate_postflight_eda_ok | bool)
+...

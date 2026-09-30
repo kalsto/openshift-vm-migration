@@ -1,0 +1,79 @@
+---
+# Which components to rotate (order matters: Gateway last, it handles sessions)
+aap_secret_rotate_components:
+  - controller
+  - hub
+  - eda
+  - gateway
+
+# Deployment type: "podman" or "operator" (auto-detected if omitted)
+aap_secret_rotate_deployment_type: ""
+
+# Dry run: report what would change without writing
+aap_secret_rotate_dry_run: false
+
+# Skip pre-rotation encryption verification (NOT recommended)
+aap_secret_rotate_skip_preflight: false
+
+# Skip post-rotation encryption verification
+aap_secret_rotate_skip_postflight: false
+
+# Backup directory for current keys (on the controller node)
+aap_secret_rotate_backup_dir: "{{ playbook_dir }}/secret_backups/{{ ansible_date_time.date | default(lookup('pipe', 'date +%Y-%m-%d')) }}"
+
+# Custom keys (empty = auto-generate a Fernet-compatible key per component)
+aap_secret_rotate_controller_key: ""
+aap_secret_rotate_gateway_key: ""
+aap_secret_rotate_eda_key: ""
+aap_secret_rotate_hub_key: ""
+
+# ── Operator-specific ──────────────────────────────────────────────────
+aap_secret_rotate_namespace: "aap"
+aap_secret_rotate_cr_name: "aap"
+aap_secret_rotate_idle_timeout: 300
+aap_secret_rotate_rollout_timeout: 300
+
+# Path to the kubectl-compatible CLI binary (auto-detected if empty).
+# Works with kubectl, oc, or any compatible binary.
+aap_secret_rotate_kubectl_binary: ""
+
+# ── External Secrets Operator (ESO) ───────────────────────────────────
+# Auto-detected if empty. Set to true/false to override.
+# When true, ExternalSecret resources are paused before patching K8s
+# Secrets so that ESO does not overwrite the rotated values.
+aap_secret_rotate_eso_managed: ""
+
+# Whether to resume ESO sync after rotation completes.
+# If false, ExternalSecrets stay paused until the operator updates
+# the external secret store (Vault, AWS SM, etc.) and resumes manually.
+aap_secret_rotate_eso_resume_after: false
+
+# ── ArgoCD / GitOps ──────────────────────────────────────────────────
+# Auto-detected if empty. Set to true/false to override.
+# When true, ArgoCD auto-sync is suspended before mutating the AAP CR
+# to prevent ArgoCD from reverting the idle_aap patch.
+aap_secret_rotate_argocd_managed: ""
+
+# ArgoCD Application name that manages the AAP namespace.
+# Auto-detected if empty (looks for Applications targeting the namespace).
+aap_secret_rotate_argocd_app_name: ""
+
+# ArgoCD Application namespace (where the Application CR lives).
+# Auto-detected if empty. Override with e.g. "argocd" or "openshift-gitops".
+aap_secret_rotate_argocd_app_namespace: ""
+
+# Whether to resume ArgoCD auto-sync after rotation completes.
+# If false, the Application stays suspended until the operator
+# updates the Git repo and resumes manually.
+aap_secret_rotate_argocd_resume_after: false
+
+# ── Podman-specific ────────────────────────────────────────────────────
+# Container names (defaults match AAP 2.7 containerised installer)
+aap_secret_rotate_controller_container: "automation-controller-task"
+aap_secret_rotate_gateway_container: "automation-gateway"
+aap_secret_rotate_eda_container: "automation-eda-api"
+aap_secret_rotate_hub_container: "automation-hub-api"
+
+# Podman systemd service prefix (used for stop/start)
+aap_secret_rotate_systemd_scope: "user"
+...

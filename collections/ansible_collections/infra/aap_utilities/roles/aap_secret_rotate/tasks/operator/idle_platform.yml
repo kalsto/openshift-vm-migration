@@ -1,0 +1,36 @@
+---
+# Idles the AnsibleAutomationPlatform CR to stop all component pods.
+
+- name: Idle AAP platform (stop all components)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ aap_secret_rotate_cr_name }}"
+        namespace: "{{ aap_secret_rotate_namespace }}"
+      spec:
+        idle_aap: true
+  when: not aap_secret_rotate_dry_run
+
+- name: Wait for pods to terminate
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ aap_secret_rotate_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/managed-by=aap-operator"
+    field_selectors:
+      - "status.phase=Running"
+  register: _running_pods
+  until: _running_pods.resources | length == 0
+  retries: "{{ (aap_secret_rotate_idle_timeout / 10) | int }}"
+  delay: 10
+  when: not aap_secret_rotate_dry_run
+
+- name: "Dry run: would idle AAP platform"
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would set spec.idle_aap=true on {{ aap_secret_rotate_cr_name }}"
+  when: aap_secret_rotate_dry_run
+...

@@ -1,0 +1,147 @@
+---
+- name: Create VM again - idempotence check
+  vmware.vmware.vm:
+    name: "{{ test_vm_name }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    cluster: "{{ vcenter_cluster_name }}"
+    datastore: "{{ shared_storage_01 }}"
+    guest_id: amazonlinux3_64Guest
+    cpu:
+      cores: 2
+    memory:
+      size_mb: 1024
+    disks:
+      - size: 10gb
+        provisioning: thin
+        device_node: SCSI(0:0)
+    scsi_controllers:
+      - controller_type: paravirtual
+        bus_number: 0
+  register: _create_vm_idempotent
+
+- name: Update VM
+  vmware.vmware.vm: &update-vm
+    name: "{{ test_vm_name }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    cluster: "{{ vcenter_cluster_name }}"
+    datastore: "{{ shared_storage_01 }}"
+    guest_id: centos7_64Guest
+    annotation: This is a test annotation
+    cpu:
+      cores: 2
+    memory:
+      size_mb: 1024
+    disks:
+      - size: 10gb
+        provisioning: thin
+        device_node: SCSI(0:0)
+    scsi_controllers:
+      - controller_type: paravirtual
+        bus_number: 0
+    enable_vtpm: true
+    vm_options:
+      boot_firmware: efi
+  register: _update_vm
+
+- name: Update VM - Idempotent
+  vmware.vmware.vm: *update-vm
+  register: _update_vm_idempotent
+
+- name: Lookup VM Info
+  vmware.vmware.vm_info:
+    moid: "{{ _update_vm.vm.moid }}"
+  register: _lookup_vm_info
+
+- name: Check basic update tasks
+  ansible.builtin.assert:
+    that:
+      - _create_vm_idempotent is not ansible.builtin.changed
+      - _update_vm is ansible.builtin.changed
+      - _update_vm_idempotent is not ansible.builtin.changed
+      - _update_vm.power_cycled_for_update is false
+      - vm_info != {}
+      - vm_info.hw_cluster == vcenter_cluster_name
+      - vm_info.hw_datastores[0] == shared_storage_01
+      - vm_info.hw_cores_per_socket == 1
+      - vm_info.hw_processor_count == 2
+      - vm_info.hw_memtotal_mb == 1024
+      - vm_info.moid == _update_vm.vm.moid
+      - vm_info.hw_name == _update_vm.vm.name
+
+      - (_update_vm.changes.changed_parameters.keys() | length) == 3 # guest_id, annotation, and boot firmware
+      - _update_vm.changes.objects_to_add[0].object_type == 'vtpm'
+      - _update_vm.changes.objects_to_update == []
+      - _update_vm.changes.objects_to_remove == []
+      - _update_vm.changes.changed_parameters['guest_id'] is defined
+      - _update_vm.changes.changed_parameters['guest_id'].old_value == 'amazonlinux3_64Guest'
+      - _update_vm.changes.changed_parameters['guest_id'].new_value == 'centos7_64Guest'
+  vars:
+    vm_info: "{{ _lookup_vm_info.guests[0] }}"
+
+- name: Update VM with minimal options
+  vmware.vmware.vm: &update-vm-minimal
+    name: "{{ test_vm_name }}"
+    guest_id: amazonlinux3_64Guest
+    enable_vtpm: false
+  register: _update_vm_minimal
+
+- name: Update VM with minimal options - Idempotent
+  vmware.vmware.vm: *update-vm-minimal
+  register: _update_vm_minimal_idempotent
+
+- name: Lookup VM Info
+  vmware.vmware.vm_info:
+    moid: "{{ _update_vm_minimal.vm.moid }}"
+  register: _lookup_vm_info
+
+- name: Check minimal update tasks
+  ansible.builtin.assert:
+    that:
+      - _update_vm_minimal is ansible.builtin.changed
+      - _update_vm_minimal_idempotent is not ansible.builtin.changed
+      - vm_info.moid == _update_vm_minimal.vm.moid
+      - vm_info.hw_name == _update_vm_minimal.vm.name
+      - (_update_vm_minimal.changes.changed_parameters.keys() | length) == 1
+      - _update_vm_minimal.changes.objects_to_add == []
+      - _update_vm_minimal.changes.objects_to_update == []
+      - _update_vm_minimal.changes.objects_to_remove[0].object_type == 'vtpm'
+  vars:
+    vm_info: "{{ _lookup_vm_info.guests[0] }}"
+
+- name: Power on VM
+  vmware.vmware.vm_powerstate:
+    moid: "{{ _update_vm_minimal.vm.moid }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    state: powered-on
+
+- name: Change CPU (Power sensitive change) - expect failure
+  vmware.vmware.vm:
+    moid: "{{ _update_vm_minimal.vm.moid }}"
+    cpu:
+      cores: 4
+    allow_power_cycling: false
+  register: _change_cpu_failure
+  ignore_errors: true
+
+- name: Change CPU (Power sensitive change)
+  vmware.vmware.vm:
+    moid: "{{ _update_vm_minimal.vm.moid }}"
+    cpu:
+      cores: 4
+    allow_power_cycling: true
+  register: _change_cpu_success
+
+- name: Power off VM so we can see if the VM was powered on after the last change
+  vmware.vmware.vm_powerstate:
+    moid: "{{ _update_vm_minimal.vm.moid }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    state: powered-off
+  register: _power_off_vm
+
+- name: Check power sensitive change tasks
+  ansible.builtin.assert:
+    that:
+      - _change_cpu_failure is ansible.builtin.failed
+      - _change_cpu_success is ansible.builtin.changed
+      - _change_cpu_success.power_cycled_for_update is true
+      - _power_off_vm is ansible.builtin.changed

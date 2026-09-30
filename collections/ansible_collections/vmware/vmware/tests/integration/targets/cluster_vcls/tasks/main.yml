@@ -1,0 +1,73 @@
+---
+- name: Test On VCenter
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+    - name: Create Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+    - name: Set vCLS Allowed Datastores
+      vmware.vmware.cluster_vcls:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        allowed_datastores: "{{ allowed_datastores }}"
+      register: _out
+    - name: Check Output
+      ansible.builtin.assert:
+        that:
+          - _out is changed
+          - _out.allowed_datastores == allowed_datastores
+          - _out.added_datastores == allowed_datastores
+          - _out.removed_datastores == []
+    - name: Set vCLS Allowed Datastores Again
+      vmware.vmware.cluster_vcls:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        allowed_datastores: "{{ allowed_datastores }}"
+      register: _out
+    - name: Check Output
+      ansible.builtin.assert:
+        that:
+          - _out is not changed
+          - _out.allowed_datastores == allowed_datastores
+          - _out.added_datastores == []
+          - _out.removed_datastores == []
+    - name: Add and Remove vCLS Datastores
+      vmware.vmware.cluster_vcls:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        datastores_to_add: "{{ datastores_to_add }}"
+        datastores_to_remove: "{{ datastores_to_remove }}"
+      register: _out
+    - name: Check Output
+      ansible.builtin.assert:
+        that:
+          - _out is changed
+          - _out.allowed_datastores == datastores_to_add
+          - _out.added_datastores == datastores_to_add
+          - _out.removed_datastores == datastores_to_remove
+    - name: Add and Remove vCLS Datastores Again
+      vmware.vmware.cluster_vcls:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        datastores_to_add: "{{ datastores_to_add }}"
+        datastores_to_remove: "{{ datastores_to_remove }}"
+      register: _out
+    - name: Check Output
+      ansible.builtin.assert:
+        that:
+          - _out is not changed
+          - _out.allowed_datastores == datastores_to_add
+          - _out.added_datastores == []
+          - _out.removed_datastores == []
+
+  always:
+    - name: Destroy Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+        state: absent

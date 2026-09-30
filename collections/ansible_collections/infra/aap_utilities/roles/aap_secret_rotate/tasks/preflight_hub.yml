@@ -1,0 +1,62 @@
+---
+# Pre-rotation verification for Automation Hub (Pulp).
+# Hub's rotate-db-key does not support --dry-run, so we verify that all
+# Remote objects (password, proxy_password, token) are readable with the
+# current key by accessing the encrypted property accessors.
+
+- name: Run Hub preflight verification
+  ansible.builtin.shell: |
+    {% if aap_secret_rotate_deployment_type == 'podman' %}
+    podman exec {{ __aap_secret_rotate_components.hub.podman_container }} \
+    {% else %}
+    {{ aap_secret_rotate_kubectl_binary }} -n {{ aap_secret_rotate_namespace }} \
+      exec deploy/{{ __aap_secret_rotate_k8s_exec.hub.deployment }} \
+      -c {{ __aap_secret_rotate_k8s_exec.hub.container }} -- \
+    {% endif %}
+      pulpcore-manager shell -c "
+    from pulpcore.app.models import Remote
+    failed = []
+    for r in Remote.objects.all():
+        try:
+            _ = r.password
+            _ = r.proxy_password
+        except Exception as e:
+            failed.append(f'Remote({r.pk}): {e}')
+    try:
+        from pulp_ansible.app.models import AnsibleRemote
+        for r in AnsibleRemote.objects.all():
+            try:
+                _ = r.token
+            except Exception as e:
+                failed.append(f'AnsibleRemote({r.pk}): {e}')
+    except ImportError:
+        pass
+    print('PREFLIGHT_FAIL' if failed else 'PREFLIGHT_OK')
+    for f in failed:
+        print(f'  {f}')
+    "
+  args:
+    executable: /bin/bash
+  register: __aap_secret_rotate_preflight_hub_result
+  changed_when: false
+  failed_when: false
+
+- name: Evaluate Hub preflight result
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_preflight_hub_ok: >-
+      {{ 'PREFLIGHT_OK' in (__aap_secret_rotate_preflight_hub_result.stdout | default('')) }}
+    __aap_secret_rotate_preflight_hub_failed_fields: >-
+      {{ __aap_secret_rotate_preflight_hub_result.stdout_lines | default([])
+         | select('match', '^ ') | list }}
+
+- name: Display Hub preflight result
+  ansible.builtin.debug:
+    msg: "Hub preflight: {{ 'PASSED' if (__aap_secret_rotate_preflight_hub_ok | bool) else 'FAILED' }}"
+
+- name: Display Hub preflight failures
+  ansible.builtin.debug:
+    msg: |-
+      Hub has encrypted fields that cannot be decrypted with the current key:
+      {{ __aap_secret_rotate_preflight_hub_failed_fields | join('\n') }}
+  when: not (__aap_secret_rotate_preflight_hub_ok | bool)
+...

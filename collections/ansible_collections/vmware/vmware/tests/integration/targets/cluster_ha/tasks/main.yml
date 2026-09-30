@@ -1,0 +1,134 @@
+---
+- name: Test On VCenter
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Include Eco Vcenter Test Vars
+      ansible.builtin.include_vars:
+        file: eco-vcenter.yml
+    - name: Create Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+
+    - name: Set HA Settings In Test Cluster
+      vmware.vmware.cluster_ha:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        host_failure_response:
+          restart_vms: true
+          default_vm_restart_priority: low
+        host_isolation_response: none
+        advanced_settings:
+          das.isolationaddress0: "1.2.3.4"
+          das.usedefaultisolationaddress: true
+          das.isolationshutdowntimeout: 310
+      register: _first
+    - name: Set HA Settings In Test Cluster Again - Idempotency
+      vmware.vmware.cluster_ha:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        host_failure_response:
+          restart_vms: true
+          default_vm_restart_priority: low
+        host_isolation_response: none
+        advanced_settings:
+          das.isolationaddress0: "1.2.3.4"
+          das.usedefaultisolationaddress: true
+          das.isolationshutdowntimeout: 310
+      register: _idem
+    - name: Gather Cluster Settings
+      vmware.vmware.cluster_info:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _cluster_info
+    - name: Check Tasks
+      ansible.builtin.assert:
+        that:
+          - _cluster_info.clusters[test_cluster].ha_enabled
+          - _idem is not changed
+          - _first is changed
+
+    - name: Disable HA
+      vmware.vmware.cluster_ha:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        enable: false
+    - name: Gather Cluster Settings
+      vmware.vmware.cluster_info:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _cluster_info
+    - name: Check Tasks
+      ansible.builtin.assert:
+        that:
+          - not _cluster_info.clusters[test_cluster].ha_enabled
+
+    - name: Enable HA With Verifiable Settings
+      vmware.vmware.cluster_ha:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        admission_control_policy: cluster_resource
+        admission_control_failover_level: 5
+        admission_control_cpu_reserve_percentage: 60
+        host_failure_response:
+          restart_vms: false
+        vm_monitoring:
+          mode: vmMonitoringOnly
+          failure_interval: 90
+          minimum_uptime: 100
+          maximum_resets: 5
+          maximum_resets_window: 7200
+    - name: Gather Cluster Settings
+      vmware.vmware.cluster_info:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _cluster_info
+    - name: Check Tasks
+      ansible.builtin.assert:
+        that:
+          - _c.ha_enabled
+          - _c.ha_admission_control_enabled
+          - _c.ha_failover_level == 5
+          - _c.ha_host_monitoring == 'disabled'
+          - _c.ha_vm_monitoring == 'vmMonitoringOnly'
+          - _c.ha_vm_failure_interval == 90
+          - _c.ha_vm_min_up_time == 100
+          - _c.ha_vm_max_failures == 5
+          - _c.ha_vm_max_failure_window == 7200
+      vars:
+        _c: "{{ _cluster_info.clusters[test_cluster] }}"
+
+    - name: Disable Admission Control
+      vmware.vmware.cluster_ha:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        admission_control_policy: disabled
+      register: _disable_ac
+    - name: Disable Admission Control
+      vmware.vmware.cluster_ha:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster: "{{ test_cluster }}"
+        admission_control_policy: disabled
+      register: _disable_ac_idem
+    - name: Gather Cluster Settings
+      vmware.vmware.cluster_info:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+      register: _cluster_info
+    - name: Check Tasks
+      ansible.builtin.assert:
+        that:
+          - _disable_ac is ansible.builtin.changed
+          - _disable_ac_idem is not ansible.builtin.changed
+          - _c.ha_enabled
+          - not _c.ha_admission_control_enabled
+      vars:
+        _c: "{{ _cluster_info.clusters[test_cluster] }}"
+
+  always:
+    - name: Destroy Test Cluster
+      vmware.vmware.cluster:
+        datacenter: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ test_cluster }}"
+        state: absent

@@ -1,0 +1,43 @@
+download_url: https://console.redhat.com/api/automation-hub/v3/plugin/ansible/content/validated/collections/artifacts/infra-aap_utilities-4.0.0.tar.gz
+format_version: 1.0.0
+name: aap_utilities
+namespace: infra
+server: https://console.redhat.com/api/automation-hub/content/validated/
+signatures:
+- pubkey_fingerprint: 39B5D759361A97464C564A8FE1A4BD708A828AAD
+  pulp_created: '2026-09-11T13:46:48.530744Z'
+  signature: '-----BEGIN PGP SIGNATURE-----
+
+
+    iQIcBAABCAAGBQJqpAZGAAoJEOGkvXCKgoqtHQYQAJGI8EC04Dmv3zLElWNRvsmu
+
+    3MeaOvo8AJNcWs4u6Uy3rCdtYIn23LcIdqTtIGlUT4b7y7mvkEZC+8C8QPaiBUyV
+
+    JIYlSVy+Izq2N3kYQMaLKPN8CtSoZ93VmeZ456+lF/U1lrnuiIxWiKpbNElzV75d
+
+    Zq3109YZH4VwJVgQ45UvXafcn3sK4IUEKogU7AH8nlHv8we9caOBrdQQpBick2I9
+
+    HwT+Auak1nUqChK8QWX5HlqArULeM3ZdSfHSb2FcLHTGEdrZ5gPI5G7PbJFFcyFM
+
+    tI1yeACEojY6uCB1Y7r3SjaD4o0ZqPogmYUELla+9FJN1j2QS4uv05r5pncFVpd/
+
+    lCzqwx7AVuY/ss5kwxe+c0Q1suT7NWgecfgc3CnnHXIo4IsbGT+dkMq5sCxjEcEG
+
+    D/TEWKVu0jqEvliV4JIH+hehcix/8hjgn52ueNmtYBxUX2ImyjHICBjWGc4g5s4h
+
+    LUg6imdT5Kyj8+VCCxZrtHanEQ6/+X2nMUGTdBH2zktppo+dmVIZTCT164zZTUYc
+
+    7TZ0teH6357YiXhc5ev5vTrgX2NU1MSR7/krP3RHdAPwCMaVQ5+3zc8MGJ++CQ6L
+
+    1YiD56fWujQGHSZIMLWXbG05mBKkOs2czJZjbykCbAN66M5HsXFbtPpgkvpsydos
+
+    QqGww2+a1dAJMe7T2l2J
+
+    =Zo9p
+
+    -----END PGP SIGNATURE-----
+
+    '
+  signing_service: null
+version: 4.0.0
+version_url: /api/automation-hub/content/validated/v3/plugin/ansible/content/validated/collections/index/infra/aap_utilities/versions/4.0.0/

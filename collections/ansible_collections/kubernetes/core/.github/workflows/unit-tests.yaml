@@ -1,0 +1,7 @@
+name: Unit tests
+
+on: [workflow_call]
+
+jobs:
+  unit-source:
+    uses: ansible-network/github_actions/.github/workflows/unit_source.yml@main

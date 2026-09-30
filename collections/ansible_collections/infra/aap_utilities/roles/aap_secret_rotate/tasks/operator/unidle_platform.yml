@@ -1,0 +1,38 @@
+---
+# Un-idles the AnsibleAutomationPlatform CR to restart all component pods.
+
+- name: Un-idle AAP platform (restart all components)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ aap_secret_rotate_cr_name }}"
+        namespace: "{{ aap_secret_rotate_namespace }}"
+      spec:
+        idle_aap: false
+  when: not aap_secret_rotate_dry_run
+
+- name: Wait for Gateway pod to be ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ aap_secret_rotate_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=gateway"
+    field_selectors:
+      - "status.phase=Running"
+  register: _gateway_pods
+  until:
+    - _gateway_pods.resources | length > 0
+    - _gateway_pods.resources | map(attribute='status.containerStatuses') | flatten | selectattr('ready', 'equalto', true) | list | length > 0
+  retries: "{{ (aap_secret_rotate_rollout_timeout / 10) | int }}"
+  delay: 10
+  when: not aap_secret_rotate_dry_run
+
+- name: "Dry run: would un-idle AAP platform"
+  ansible.builtin.debug:
+    msg: "[DRY RUN] Would set spec.idle_aap=false on {{ aap_secret_rotate_cr_name }}"
+  when: aap_secret_rotate_dry_run
+...

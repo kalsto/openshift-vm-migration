@@ -1,0 +1,19 @@
+---
+vm_folder: test_folder
+vm_name: DC0_H0_VM0
+
+template_folders:
+  - "{{ tiny_prefix }}_folder_1"
+  - "{{ tiny_prefix }}_folder_2"
+vm_name_match: first
+template_name: "{{ vm_name }}_template"
+
+vm_guest_id: "rhel8_64Guest"
+vm_disk:
+  - size_gb: 10
+    type: thin
+    autoselect_datastore: true
+vm_hardware:
+  memory_mb: 2000
+  num_cpus: 2
+  boot_firmware: efi

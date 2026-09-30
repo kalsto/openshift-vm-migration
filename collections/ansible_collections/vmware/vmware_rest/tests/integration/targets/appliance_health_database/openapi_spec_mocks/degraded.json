@@ -1,0 +1,87 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vCenter Database Health Mock",
+    "version": "9.1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{host}/api",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/appliance/health/database": {
+      "get": {
+        "operationId": "Appliance.Health.Database_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Appliance.Health.Database.Info"
+                },
+                "example": {
+                  "status": "DEGRADED",
+                  "messages": [
+                    {
+                      "severity": "WARNING",
+                      "message": {
+                        "id": "com.vmware.appliance.health.database.degraded",
+                        "default_message": "Database is degraded.",
+                        "args": []
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Appliance.Health.Database.Info": {
+        "type": "object",
+        "required": ["status", "messages"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Database health status (HEALTHY, DEGRADED, or UNHEALTHY)."
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Appliance.Health.Database.Message"
+            }
+          }
+        }
+      },
+      "Appliance.Health.Database.Message": {
+        "type": "object",
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "description": "Severity of the message (ERROR or WARNING)."
+          },
+          "message": {
+            "type": "object",
+            "description": "A localizable message describing the issue."
+          }
+        }
+      }
+    }
+  }
+}

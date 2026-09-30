@@ -1,0 +1,83 @@
+---
+# ============================================================
+# STORAGE POLICIES INFO TESTS
+# ============================================================
+- name: List storage policies (empty)
+  vmware.vmware_rest.vcenter_storage_policies_info: {}
+  register: list_empty
+
+- name: Assert empty list
+  ansible.builtin.assert:
+    that:
+      - list_empty.info is defined
+      - list_empty.info | length == 0
+      - list_empty.value is defined
+      - list_empty.value | length == 0
+
+- name: Reset before multiple list expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for multiple policies
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/list_multiple.json"
+      operationsAndResponses:
+        Vcenter.Storage.Policies_list: "200"
+
+- name: List storage policies (multiple)
+  vmware.vmware_rest.vcenter_storage_policies_info: {}
+  register: list_multi
+
+- name: Check storage policies multi list
+  ansible.builtin.assert:
+    that:
+      - list_multi.value is defined
+      - list_multi.value | length == 2
+      - list_multi.info is defined
+      - list_multi.info | length == 2
+      - list_multi.info[0].policy == 'aa6d5a82-1c88-45da-85d3-3d74b91a5bad'
+      - list_multi.info[0].name == 'VM Storage Policy'
+      - list_multi.info[0].description == 'Storage policy for virtual machine workloads'
+      - list_multi.info[1].policy == '9b0e68e6-54cf-4b59-9e53-8a8e0b45c4d2'
+      - list_multi.info[1].name == 'High Performance Policy'
+
+- name: Reset before filtered list expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for filtered policies
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/filtered.json"
+      operationsAndResponses:
+        Vcenter.Storage.Policies_list: "200"
+
+- name: List storage policies with filter
+  vmware.vmware_rest.vcenter_storage_policies_info:
+    policies:
+      - aa6d5a82-1c88-45da-85d3-3d74b91a5bad
+  register: list_filtered
+
+- name: Check filtered storage policies list
+  ansible.builtin.assert:
+    that:
+      - list_filtered.info is defined
+      - list_filtered.info | length == 1
+      - list_filtered.info[0].policy == 'aa6d5a82-1c88-45da-85d3-3d74b91a5bad'
+      - list_filtered.info[0].name == 'VM Storage Policy'
+      - list_filtered.value is defined
+      - list_filtered.value.policy == 'aa6d5a82-1c88-45da-85d3-3d74b91a5bad'
+      - list_filtered.value.name == 'VM Storage Policy'

@@ -1,0 +1,22 @@
+---
+- name: Use provided custom key for {{ _component }}
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_new_keys: "{{ __aap_secret_rotate_new_keys | combine({_component: _component_config.custom_key_var}) }}"
+  when: _component_config.custom_key_var | length > 0
+  no_log: true
+
+- name: Generate new Fernet-compatible key for {{ _component }}
+  when: _component_config.custom_key_var | length == 0
+  block:
+    - name: Generate random key material for {{ _component }}
+      ansible.builtin.command:
+        cmd: openssl rand -base64 32
+      register: __aap_secret_rotate_generated_key
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Store generated key for {{ _component }}
+      ansible.builtin.set_fact:
+        __aap_secret_rotate_new_keys: "{{ __aap_secret_rotate_new_keys | combine({_component: __aap_secret_rotate_generated_key.stdout | trim}) }}"
+      no_log: true
+...

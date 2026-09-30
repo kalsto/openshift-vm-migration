@@ -1,0 +1,55 @@
+---
+- name: Test
+  environment: "{{ environment_auth_vars }}"
+
+  block:
+    - name: Create a test folders
+      vmware.vmware.folder:
+        relative_path: "{{ test_folder }}"
+        folder_type: vm
+        datacenter: "{{ vcenter_datacenter }}"
+
+    - name: Create Virtual Machine From OVF Template
+      vmware.vmware.deploy_content_library_ovf:
+        library_item_name: "{{ rhel9_content_library_ovf }}"
+        vm_name: "{{ vm_name }}"
+        datacenter: "{{  vcenter_datacenter }}"
+        datastore: "{{ shared_storage_02 }}"
+        cluster: "{{ vcenter_cluster_name }}"
+        folder: "{{ test_folder }}"
+
+    - name: VM portgroup information
+      vmware.vmware.vm_portgroup_info:
+        vm_names:
+          - "{{ vm_name }}"
+      register: __res
+
+    - name: Print result
+      ansible.builtin.debug:
+        var: __res
+
+    - name: Assert values
+      ansible.builtin.assert:
+        that:
+          - __res.changed == False
+          - __res.vm_portgroup_info[vm_name] | length == 1
+          - __res.vm_portgroup_info[vm_name][0]['portgroup_name'] == "vm_traffic"
+          - __res.vm_portgroup_info[vm_name][0]['nic_type'] == "VMXNET3"
+          - __res.vm_portgroup_info[vm_name][0]['type'] == "DISTRIBUTED_PORTGROUP"
+
+  always:
+    - name: "Test teardown: Destroy VM guest {{ vm_name }}"
+      community.vmware.vmware_guest:
+        cluster: "{{ vcenter_cluster_name }}"
+        datacenter: "{{  vcenter_datacenter }}"
+        folder: "{{ test_folder }}"
+        state: absent
+        force: true
+        name: "{{ vm_name }}"
+
+    - name: Create a test folders
+      vmware.vmware.folder:
+        relative_path: "{{ test_folder }}"
+        folder_type: vm
+        datacenter: "{{ vcenter_datacenter }}"
+        state: absent

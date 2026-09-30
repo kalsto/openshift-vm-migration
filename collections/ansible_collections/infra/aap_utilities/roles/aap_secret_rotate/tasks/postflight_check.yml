@@ -1,0 +1,70 @@
+---
+# Post-rotation verification orchestrator.
+# Runs component-specific postflight checks to verify all encrypted fields are
+# decryptable with the NEW key after rotation completes.
+#
+# If any component fails postflight, the play is aborted. Unlike preflight,
+# there is no skip option for postflight since a failure here means the
+# rotation left the system in a broken state.
+
+- name: Display postflight check banner
+  ansible.builtin.debug:
+    msg: |-
+      ╔══════════════════════════════════════════════════════════════════╗
+      ║  Post-rotation verification: checking all encrypted fields     ║
+      ║  are decryptable with the NEW key                              ║
+      ╚══════════════════════════════════════════════════════════════════╝
+
+- name: Run Controller postflight check
+  ansible.builtin.include_tasks: postflight_controller.yml
+  when: "'controller' in aap_secret_rotate_components"
+
+- name: Run Gateway postflight check
+  ansible.builtin.include_tasks: postflight_gateway.yml
+  when:
+    - "'gateway' in aap_secret_rotate_components"
+    - __aap_secret_rotate_gw_has_rotate | default(false) | bool
+
+- name: Run EDA postflight check
+  ansible.builtin.include_tasks: postflight_eda.yml
+  when: "'eda' in aap_secret_rotate_components"
+
+- name: Run Hub postflight check
+  ansible.builtin.include_tasks: postflight_hub.yml
+  when: "'hub' in aap_secret_rotate_components"
+
+- name: Collect postflight results
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_postflight_failures: >-
+      {{
+        ([] if ('controller' not in aap_secret_rotate_components
+                or (__aap_secret_rotate_postflight_controller_ok | default(true) | bool))
+           else ['controller'])
+        + ([] if ('gateway' not in aap_secret_rotate_components
+                  or not (__aap_secret_rotate_gw_has_rotate | default(false) | bool)
+                  or (__aap_secret_rotate_postflight_gateway_ok | default(true) | bool))
+              else ['gateway'])
+        + ([] if ('eda' not in aap_secret_rotate_components
+                  or (__aap_secret_rotate_postflight_eda_ok | default(true) | bool))
+              else ['eda'])
+        + ([] if ('hub' not in aap_secret_rotate_components
+                  or (__aap_secret_rotate_postflight_hub_ok | default(true) | bool))
+              else ['hub'])
+      }}
+
+- name: Display postflight summary
+  ansible.builtin.debug:
+    msg: >-
+      Postflight verification {{ 'PASSED for all components' if
+        (__aap_secret_rotate_postflight_failures | length == 0) else
+        'FAILED for: ' ~ __aap_secret_rotate_postflight_failures | join(', ') }}
+
+- name: Fail if postflight detected undecryptable fields
+  ansible.builtin.fail:
+    msg: >-
+      POSTFLIGHT FAILED: The following components have encrypted fields that cannot
+      be decrypted with the NEW key after rotation: {{ __aap_secret_rotate_postflight_failures | join(', ') }}.
+      This indicates the rotation did not fully complete. Restore from the backup at
+      {{ aap_secret_rotate_backup_dir }}/aap_secret_keys.bak and investigate.
+  when: __aap_secret_rotate_postflight_failures | length > 0
+...

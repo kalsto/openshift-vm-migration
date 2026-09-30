@@ -1,0 +1,118 @@
+---
+# Rotation workflow for Automation Hub (Pulp).
+# Hub uses a different mechanism from the other components:
+#   - DB_ENCRYPTION_KEY is a Fernet symmetric key (not Django SECRET_KEY)
+#   - The key file supports multiple keys (one per line)
+#   - First key encrypts, all keys can decrypt
+#   - pulpcore-manager rotate-db-key re-encrypts using the first key
+#
+# Flow:
+# 1. Stop non-exec containers, keep exec container running
+# 2. Write multi-key file (new + old) into exec container
+# 3. Run rotate-db-key (re-encrypts data with new key)
+# 4. Update podman secret and write final key into all containers
+# 5. Restart all containers
+
+- name: Set component config for Hub
+  ansible.builtin.set_fact:
+    _component: "hub"
+    _component_config: "{{ __aap_secret_rotate_components.hub }}"
+
+- name: Store old key for Hub multi-key file
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_hub_old_key: "{{ __aap_secret_rotate_backup_keys.hub }}"
+  no_log: true
+
+- name: Stop component for Hub (podman only)
+  ansible.builtin.include_tasks: "podman/stop_component.yml"
+  vars:
+    _component: "hub"
+  when: aap_secret_rotate_deployment_type == 'podman'
+
+- name: Start exec container for rotation of Hub (podman)
+  ansible.builtin.command:
+    cmd: "podman start {{ __aap_secret_rotate_components.hub.podman_container }}"
+  changed_when: true
+  when:
+    - aap_secret_rotate_deployment_type == 'podman'
+    - not aap_secret_rotate_dry_run
+
+- name: Wait for exec container to be ready for Hub (podman)
+  ansible.builtin.command:
+    cmd: "podman wait --condition=running {{ __aap_secret_rotate_components.hub.podman_container }}"
+  changed_when: false
+  retries: 6
+  delay: 5
+  register: __aap_secret_rotate_hub_wait
+  until: __aap_secret_rotate_hub_wait.rc == 0
+  when:
+    - aap_secret_rotate_deployment_type == 'podman'
+    - not aap_secret_rotate_dry_run
+
+- name: Write multi-key file into exec container for Hub (podman)
+  ansible.builtin.command:
+    cmd: >-
+      podman exec --user 0 {{ __aap_secret_rotate_components.hub.podman_container }}
+      sh -c 'printf "%s\n%s" "$1" "$2" > "$3"'
+      -- "{{ __aap_secret_rotate_new_keys.hub }}"
+      "{{ __aap_secret_rotate_hub_old_key }}"
+      "{{ __aap_secret_rotate_podman_secret_paths.hub }}"
+  no_log: true
+  changed_when: true
+  when:
+    - aap_secret_rotate_deployment_type == 'podman'
+    - not aap_secret_rotate_dry_run
+
+# Operator: write multi-key to K8s Secret, rollout restart Hub so pods
+# mount the file with both keys, then run rotate-db-key.
+- name: Write multi-key to K8s Secret for Hub (operator)
+  kubernetes.core.k8s:
+    state: present
+    definition: |
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: {{ __aap_secret_rotate_components.hub.k8s_secret }}
+        namespace: {{ aap_secret_rotate_namespace }}
+      stringData:
+        {{ __aap_secret_rotate_components.hub.k8s_secret_field }}: {{ (__aap_secret_rotate_new_keys.hub ~ '\n' ~ __aap_secret_rotate_hub_old_key) | to_json }}
+  no_log: true
+  when:
+    - aap_secret_rotate_deployment_type == 'operator'
+    - not aap_secret_rotate_dry_run
+
+- name: Rollout restart Hub to pick up multi-key file (operator)
+  ansible.builtin.include_tasks: "operator/rollout_restart.yml"
+  vars:
+    _component: "hub"
+  when:
+    - aap_secret_rotate_deployment_type == 'operator'
+    - not aap_secret_rotate_dry_run
+
+- name: Run rotation command for Hub
+  ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/exec_command.yml"
+  vars:
+    _component: "hub"
+    _component_config: "{{ __aap_secret_rotate_components.hub }}"
+    _exec_env: {}
+    _exec_cmd: "pulpcore-manager rotate-db-key"
+
+- name: Write final secret for Hub (new key only)
+  ansible.builtin.include_tasks: "{{ aap_secret_rotate_deployment_type }}/write_secret.yml"
+  vars:
+    _component: "hub"
+    _component_config: "{{ __aap_secret_rotate_components.hub }}"
+    _secret_value: "{{ __aap_secret_rotate_new_keys.hub }}"
+
+- name: Restart component for Hub (podman only)
+  ansible.builtin.include_tasks: "podman/restart_component.yml"
+  vars:
+    _component: "hub"
+  when: aap_secret_rotate_deployment_type == 'podman'
+
+- name: Rollout restart Hub with final key (operator)
+  ansible.builtin.include_tasks: "operator/rollout_restart.yml"
+  vars:
+    _component: "hub"
+  when: aap_secret_rotate_deployment_type == 'operator'
+...

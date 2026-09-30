@@ -1,0 +1,64 @@
+---
+# ============================================================
+# APPLIANCE_HEALTH_DATABASE_INFO TESTS
+# ============================================================
+
+# Test 1: Get health status when the database is healthy
+- name: Get Database health status (healthy)
+  vmware.vmware_rest.appliance_health_database_info: {}
+  register: database_health_healthy
+
+- name: Assert healthy status is reported
+  ansible.builtin.assert:
+    that:
+      - database_health_healthy.value is defined
+      - database_health_healthy.value.status == 'HEALTHY'
+      - database_health_healthy.value.messages == []
+      - database_health_healthy.info is defined
+      - database_health_healthy.info | length == 1
+      - database_health_healthy.info[0].status == 'HEALTHY'
+      - not database_health_healthy.changed
+
+# Test 2: Get health status when the database is degraded
+- name: Reset before degraded health expectations
+  ansible.builtin.include_role:
+    name: prepare_simulator
+  vars:
+    prepare_simulator_reset: true
+
+- name: Load API spec expectations for degraded health
+  ansible.builtin.uri:
+    url: "{{ mockserver_url }}/mockserver/openapi"
+    method: PUT
+    status_code: [200, 201]
+    body_format: json
+    body:
+      specUrlOrPayload: "file:/mockserver_specs/degraded.json"
+      operationsAndResponses:
+        Appliance.Health.Database_get: "200"
+
+- name: Get Database health status (degraded)
+  vmware.vmware_rest.appliance_health_database_info: {}
+  register: database_health_degraded
+
+- name: Assert degraded status is reported
+  ansible.builtin.assert:
+    that:
+      - database_health_degraded.value.status == 'DEGRADED'
+      - database_health_degraded.value.messages | length == 1
+      - database_health_degraded.value.messages[0].severity == 'WARNING'
+      - database_health_degraded.info | length == 1
+      - database_health_degraded.info[0].status == 'DEGRADED'
+      - not database_health_degraded.changed
+
+# Test 3: Check mode returns the same read-only result without error
+- name: Get Database health status (check mode)
+  vmware.vmware_rest.appliance_health_database_info: {}
+  check_mode: true
+  register: database_health_check
+
+- name: Assert check mode reports no change for read-only info module
+  ansible.builtin.assert:
+    that:
+      - database_health_check.value.status == 'DEGRADED'
+      - not database_health_check.changed

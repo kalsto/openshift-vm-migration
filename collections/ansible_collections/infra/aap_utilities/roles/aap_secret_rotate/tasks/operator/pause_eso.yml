@@ -1,0 +1,60 @@
+---
+# Pauses ExternalSecret resources that manage AAP secrets so that ESO does
+# not overwrite the rotated key values before the external store is updated.
+
+- name: Find ExternalSecret resources in the AAP namespace
+  kubernetes.core.k8s_info:
+    api_version: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    namespace: "{{ aap_secret_rotate_namespace }}"
+  register: __aap_secret_rotate_eso_resources
+
+- name: Build list of ExternalSecrets that target AAP component secrets
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_eso_to_pause: >-
+      {{ __aap_secret_rotate_eso_resources.resources | default([])
+         | selectattr('spec.target.name', 'defined')
+         | list }}
+
+- name: Save original ExternalSecret refresh intervals (for resume)
+  ansible.builtin.set_fact:
+    __aap_secret_rotate_eso_original_intervals: >-
+      {{ __aap_secret_rotate_eso_original_intervals | default({}) | combine({
+        item.metadata.name: item.spec.refreshInterval | default('1h')
+      }) }}
+  loop: "{{ __aap_secret_rotate_eso_to_pause }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Pause ExternalSecret reconciliation
+  kubernetes.core.k8s:
+    state: patched
+    api_version: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ aap_secret_rotate_namespace }}"
+    definition:
+      metadata:
+        annotations:
+          reconcile.external-secrets.io/disabled: "true"
+  loop: "{{ __aap_secret_rotate_eso_to_pause }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: not aap_secret_rotate_dry_run
+
+- name: Display paused ExternalSecrets
+  ansible.builtin.debug:
+    msg: >-
+      Paused ESO reconciliation for:
+      {{ __aap_secret_rotate_eso_to_pause | map(attribute='metadata.name') | list | join(', ') }}
+  when: __aap_secret_rotate_eso_to_pause | length > 0
+
+- name: Dry run - would pause ExternalSecrets
+  ansible.builtin.debug:
+    msg: >-
+      [DRY RUN] Would pause ESO reconciliation for:
+      {{ __aap_secret_rotate_eso_to_pause | map(attribute='metadata.name') | list | join(', ') }}
+  when:
+    - aap_secret_rotate_dry_run
+    - __aap_secret_rotate_eso_to_pause | length > 0
+...

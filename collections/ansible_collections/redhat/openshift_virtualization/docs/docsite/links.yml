@@ -1,0 +1,13 @@
+---
+edit_on_github:
+  repository: redhat/redhat.openshift_virtualization
+  branch: main
+
+extra_links:
+  - description: Report an issue
+    url: https://github.com/redhat/redhat.openshift_virtualization/issues/new/choose
+
+communication:
+  mailing_lists:
+    - topic: redhat-dev List
+      url: https://groups.google.com/g/redhat-dev

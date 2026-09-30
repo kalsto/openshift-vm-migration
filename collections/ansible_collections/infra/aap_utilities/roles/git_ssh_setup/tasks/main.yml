@@ -1,0 +1,64 @@
+---
+# tasks file for git_ssh_setup
+
+- name: Install some additional convenience software on the control node
+  become: true
+  ansible.builtin.package:
+    name: "{{ git_needed_software }}"
+    state: present
+
+- name: Make sure git-shell is in /etc/shells
+  become: true
+  ansible.builtin.lineinfile:
+    dest: /etc/shells
+    line: /usr/bin/git-shell
+
+- name: Ensure git user exists and uses git-shell
+  become: true
+  ansible.builtin.user:
+    name: "{{ git_server_user }}"
+    comment: Git server user
+    shell: /usr/bin/git-shell
+
+- name: Define projects directory variable
+  ansible.builtin.set_fact:
+    full_projects_dir: /home/{{ git_server_user }}/{{ git_projects_dir }}
+
+- name: Ensure home directory exists and has the correct access rights
+  become: true
+  ansible.builtin.file:
+    path: /home/{{ git_server_user }}
+    owner: "{{ git_server_user }}"
+    group: "{{ git_server_user }}"
+    mode: ug+rX
+    state: directory
+
+- name: Ensure projects directory exists and has the correct access rights
+  become: true
+  ansible.builtin.file:
+    path: "{{ full_projects_dir }}"
+    owner: "{{ git_server_user }}"
+    group: "{{ git_server_user }}"
+    mode: ug+rwsX
+    state: directory
+
+- name: Create and setup each Git project
+  ansible.builtin.include_tasks:
+    file: git_projects.yml
+  loop: "{{ git_projects }}"
+  loop_control:
+    loop_var: project_item
+
+- name: Create and manage each client Git users
+  ansible.builtin.include_tasks:
+    file: git_users.yml
+  loop: "{{ git_client_users }}"
+  loop_control:
+    loop_var: client_item
+
+- name: Debug
+  ansible.builtin.debug:
+    msg: >-
+      Git repos can be used with e.g.
+      'git clone {{ git_client_users[0].name }}@{{ ansible_host }}:{{ full_projects_dir }}/{{ git_projects[0] }}.git'.
+...

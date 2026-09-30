@@ -1,0 +1,36 @@
+---
+# Test playbook: AAP Secret Key Rotation (operator deployment on Kubernetes/OpenShift)
+#
+# Usage:
+#   # Dry run (safe, no changes):
+#   ansible-playbook test_operator.yml -e aap_secret_rotate_dry_run=true
+#
+#   # Full rotation with custom namespace and CR name:
+#   ansible-playbook test_operator.yml \
+#     -e aap_secret_rotate_namespace=my-aap \
+#     -e aap_secret_rotate_cr_name=my-aap
+#
+#   # Single component only:
+#   ansible-playbook test_operator.yml \
+#     -e '{"aap_secret_rotate_components": ["gateway"]}'
+#
+# Prerequisites:
+#   - Back up your AAP database before running without dry_run
+#   - kubectl/oc configured with access to the AAP namespace
+#   - Permissions: Secrets (get/list/patch), Jobs (create/delete),
+#     Deployments (get/list), AnsibleAutomationPlatform CR (get/patch)
+
+- name: AAP Secret Key Rotation (operator)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    aap_secret_rotate_deployment_type: "operator"
+    aap_secret_rotate_namespace: "aap"
+    aap_secret_rotate_cr_name: "aap"
+    aap_secret_rotate_dry_run: true
+
+  roles:
+    - role: infra.aap_utilities.aap_secret_rotate
+...
