@@ -13,7 +13,7 @@
         "MDA Cluster",
         "MNY Cluster"
       ],
-      "default": ""
+      "default": "MTY Cluster"
     },
     {
       "question_name": "Target OpenShift Namespace",
@@ -22,6 +22,18 @@
       "type": "text",
       "required": true,
       "default": "openshift-mtv"
+    },
+    {
+      "question_name": "Enable Preflight Inspection",
+      "question_description": "Perform deep guest filesystem inspection. Disable if source VM uses software RAID (mdadm) or non-standard disk layouts.",
+      "variable": "run_preflight_inspection",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "true"
     },
     {
       "question_name": "Enable Warm Migration",

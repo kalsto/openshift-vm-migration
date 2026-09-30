@@ -41,6 +41,9 @@
             else (vault_mny_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
             else vault_mty_target_openshift_token)
           }}
+        # Normalize survey inputs to boolean facts
+        should_run_preflight: "{{ run_preflight_inspection | default(true) | bool }}"
+        is_warm_migration: "{{ warm_migration | default(is_warm | default(true)) | bool }}"
 
     - name: Generate unique timestamped migration plan name
       ansible.builtin.set_fact:
@@ -68,12 +71,13 @@
           - "============================================================"
           - "  MIGRATION EXECUTION SUMMARY                                 "
           - "============================================================"
-          - "  Plan Name:          {{ migration_plan_name }}"
-          - "  Target Limit:       {{ ansible_limit }}"
-          - "  Source vCenter:     {{ vsphere_direct_host }}"
-          - "  Target OpenShift:   {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
-          - "  Target Namespace:   {{ target_namespace }}"
-          - "  Warm Migration:     {{ is_warm }}"
+          - "  Plan Name:            {{ migration_plan_name }}"
+          - "  Target Limit:         {{ ansible_limit }}"
+          - "  Source vCenter:       {{ vsphere_direct_host }}"
+          - "  Target OpenShift:     {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
+          - "  Target Namespace:     {{ target_namespace }}"
+          - "  Warm Migration:       {{ is_warm_migration }}"
+          - "  Preflight Inspection: {{ should_run_preflight }}"
           - "============================================================"
 
     # -------------------------------------------------------------------------
@@ -88,7 +92,7 @@
         name: "{{ item.name }}"
       loop: "{{ source_vms }}"
       register: vm_cbt_check
-      when: is_warm | default(true) | bool
+      when: is_warm_migration | bool
       delegate_to: localhost
 
     - name: Assert CBT is enabled on all VMs for warm migration
@@ -99,7 +103,7 @@
         fail_msg: "WARM MIGRATION ABORTED! VM '{{ item.item.name }}' does not have Changed Block Tracking (CBT) enabled in vSphere. Enable CBT on the VM or perform a cold migration."
       loop: "{{ vm_cbt_check.results | default([]) }}"
       when:
-        - is_warm | default(true) | bool
+        - is_warm_migration | bool
         - item.skipped is not defined or not item.skipped
 
     - name: Power off source VMs in vSphere when performing cold migration
@@ -111,7 +115,7 @@
         name: "{{ item.name }}"
         state: poweredoff
       loop: "{{ source_vms }}"
-      when: not is_warm
+      when: not (is_warm_migration | bool)
       delegate_to: localhost
 
   tasks:
@@ -229,7 +233,8 @@
                     namespace: "{{ mtv_namespace }}"
                 targetNamespace: "{{ target_namespace }}"
                 vms: "{{ source_vms }}"
-                warm: "{{ is_warm }}"
+                warm: "{{ is_warm_migration }}"
+                runPreflightInspection: "{{ should_run_preflight }}"
 
         # -------------------------------------------------------------------------
         # PRE-FLIGHT VALIDATION: WAIT FOR FORKLIFT RECONCILIATION & FAIL FAST
