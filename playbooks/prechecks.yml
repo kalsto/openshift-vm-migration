@@ -4,18 +4,27 @@
   hosts: "localhost"
   gather_facts: no
 
-  environment:
-    K8S_AUTH_HOST: "{{ openshift_host }}"
-    K8S_AUTH_API_KEY: "{{ openshift_token }}"
-    K8S_AUTH_VERIFY_SSL: "false"
+#  environment:
+#    K8S_AUTH_HOST: "{{ openshift_host }}"
+#    K8S_AUTH_API_KEY: "{{ openshift_token }}"
+#    K8S_AUTH_VERIFY_SSL: "false"
 
   vars:
     mtv_tt_debug: true
   vars_files:
-    - "../vars/all_vault.yml" 
-    - "../vars/{{ mtv_ocp_short | default('tbd') }}.yml"
     - "../vars/all.yml"
+    - "../vars/{{ mtv_ocp_short | default('tbd') }}.yml"
+    - "../vars/all_vault.yml" 
 
+  tasks:
+    - name: "Prechecks | debug"
+      ansible.builtin.debug:
+        msg:
+          "mtv_ocp_short is {{ mtv_ocp_short }}"
+      when:
+        - mtv_tt_debug | default(false)
+      
+  
 #  pre_tasks:
 #    - name: "Precheck playbook - ensure a limit is passed in"
 #      ansible.builtin.assert:

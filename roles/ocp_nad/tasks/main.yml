@@ -22,10 +22,21 @@
 - name: "{{ role_name }} | task_main"
   ansible.builtin.debug:
     msg: "vsphere_host is {{ ansible_host }}" 
+  when:
+    - mtv_tt_debug | default(false)
 
 - name: "{{ role_name }} | task_main"
   ansible.builtin.debug:
     msg: "required vlans are: {{ ocp_required_vlans }}"
+  when:
+    - mtv_tt_debug | default(false)
+
+- name: "{{ role_name }} | task_main | assert"
+  ansible.builtin.assert:
+    that:
+      - openshift_token != 'tbd'
+      - openshift_host != 'tbd'
+    fail_msg: "Either openshift_token or openshift_host haven't been set properly"
 
 - name: "{{ role_name }} | task_main | check for nads"
   ansible.builtin.include_tasks:
