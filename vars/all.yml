@@ -27,7 +27,7 @@ network_map: "{{ tt_mtv_network_map | default('tbd') }}"
 storage_map: "{{ tt_mtv_storage_map | default('tbd') }}"
 
 mtv_ocp_short: "tbd"
-ocp_nad_naming_convention: "{{ mtv_ocp_short }}-vlan%s"
+ocp_nad_naming_convention: "tbd"
 
 ocp_required_vlans: # For the few known 1-offs, this can be overridden in the specific host_vars vaulted file
   - 37
