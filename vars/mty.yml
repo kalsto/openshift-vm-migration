@@ -20,6 +20,10 @@ vsphere_direct_host: "{{ vault_chi_vcenter_host }}"
 mtv_provider_cr_name: "{{ vault_chi_vcenter_fqdn }}"
 
 provider: "vsphere"
+create_plans: true
+map_plans: true
+mtv_create_plans: true
+mtv_map_plans: true
 mtv_management_source_target: "{{ mtv_provider_cr_name }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"

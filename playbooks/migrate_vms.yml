@@ -172,9 +172,64 @@
           loop: "{{ mtv_network_maps }}"
           when: mtv_network_maps is defined and mtv_network_maps | length > 0
 
-        - name: Provision Secrets, Providers, Maps, and Migration Plans
+        - name: Ensure Target StorageMap CR Exists on Target Cluster
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: StorageMap
+              metadata:
+                name: "{{ item.name }}"
+                namespace: "{{ item.namespace }}"
+              spec:
+                provider:
+                  source:
+                    name: "{{ item.source_provider }}"
+                    namespace: "{{ item.namespace }}"
+                  destination:
+                    name: "{{ item.destination_provider }}"
+                    namespace: "{{ item.namespace }}"
+                map: "{{ item.map }}"
+          loop: "{{ mtv_storage_maps }}"
+          when: mtv_storage_maps is defined and mtv_storage_maps | length > 0
+
+        - name: Provision Secrets, Providers, Maps, and Migration Plans via Role
           ansible.builtin.include_role:
             name: infra.openshift_virtualization_migration.mtv_management
+
+        - name: Explicitly Provision Migration Plan CR
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: Plan
+              metadata:
+                name: "{{ migration_plan_name }}"
+                namespace: "{{ mtv_namespace }}"
+              spec:
+                provider:
+                  source:
+                    name: "{{ mtv_provider_cr_name }}"
+                    namespace: "{{ mtv_namespace }}"
+                  destination:
+                    name: "host"
+                    namespace: "{{ mtv_namespace }}"
+                map:
+                  network:
+                    name: "{{ mtv_network_maps[0].name }}"
+                    namespace: "{{ mtv_namespace }}"
+                  storage:
+                    name: "{{ mtv_storage_maps[0].name }}"
+                    namespace: "{{ mtv_namespace }}"
+                targetNamespace: "{{ target_namespace }}"
+                vms: "{{ source_vms }}"
+                warm: "{{ is_warm }}"
 
         # -------------------------------------------------------------------------
         # PRE-FLIGHT VALIDATION: WAIT FOR FORKLIFT RECONCILIATION & FAIL FAST
