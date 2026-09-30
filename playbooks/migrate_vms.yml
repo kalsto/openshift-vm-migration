@@ -43,6 +43,7 @@
           }}
         # Normalize survey inputs to boolean facts
         should_run_preflight: "{{ run_preflight_inspection | default(true) | bool }}"
+        should_skip_conversion: "{{ skip_guest_conversion | default(false) | bool }}"
         is_warm_migration: "{{ warm_migration | default(is_warm | default(true)) | bool }}"
 
     - name: Generate unique timestamped migration plan name
@@ -78,6 +79,7 @@
           - "  Target Namespace:     {{ target_namespace }}"
           - "  Warm Migration:       {{ is_warm_migration }}"
           - "  Preflight Inspection: {{ should_run_preflight }}"
+          - "  Skip Guest Conversion:{{ should_skip_conversion }}"
           - "============================================================"
 
     # -------------------------------------------------------------------------
@@ -235,6 +237,7 @@
                 vms: "{{ source_vms }}"
                 warm: "{{ is_warm_migration }}"
                 runPreflightInspection: "{{ should_run_preflight }}"
+                skipGuestConversion: "{{ should_skip_conversion }}"
 
         # -------------------------------------------------------------------------
         # PRE-FLIGHT VALIDATION: WAIT FOR FORKLIFT RECONCILIATION & FAIL FAST

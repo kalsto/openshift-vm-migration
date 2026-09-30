@@ -36,6 +36,18 @@
       "default": "true"
     },
     {
+      "question_name": "Skip Guest Conversion",
+      "question_description": "Bypass virt-v2v OS modification. Enable for VMs with Linux software RAID (mdadm), custom kernel drivers, or encrypted disks.",
+      "variable": "skip_guest_conversion",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "false"
+    },
+    {
       "question_name": "Enable Warm Migration",
       "question_description": "Perform online CBT disk replication before final cutover shutdown",
       "variable": "warm_migration",
