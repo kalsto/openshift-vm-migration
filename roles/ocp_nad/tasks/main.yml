@@ -12,7 +12,6 @@
   ansible.builtin.debug:
     msg: 
       - "Here's some critical things:"
-      - "openshift_token: {{ openshift_token | default('all group vars not being processed') }}"
       - "openshift_host: {{ openshift_host | default('all group vars not being processed') }}"
   when:
     - mtv_tt_debug | default (false)
