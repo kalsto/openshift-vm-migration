@@ -20,7 +20,7 @@
 
 - name: "{{ role_name }} | set fact for expected and existing nads"
   ansible.builtin.set_fact:
-    expected_nad_names: "{{ ocp_required_vlans | map('string') | map('format', ocp_nad_naming_convention) | list }}"
+    expected_nad_names: "{{ ocp_required_vlans | map('format', ocp_nad_naming_convention) | list }}"
     existing_nad_names: "{{ ocp_existing_nads.resources | map(attribute='metadata.name') | list }}"
 
 - name: "{{ role_name }} | Determine if any nads are missing"
