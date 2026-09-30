@@ -245,12 +245,16 @@
             namespace: "{{ mtv_namespace }}"
           register: plan_preflight_info
           until: >
-            plan_preflight_info.resources | default([]) | length > 0 and
-            plan_preflight_info.resources[0].status.conditions | default([]) | length > 0
-          retries: 15
-          delay: 3
+            (plan_preflight_info.resources | default([]) | length > 0) and
+            (plan_preflight_info.resources[0].status.conditions | default([])
+             | selectattr('type', 'defined')
+             | selectattr('type', 'equalto', 'Ready')
+             | selectattr('status', 'equalto', 'True') | list | length > 0)
+          retries: 20
+          delay: 5
+          ignore_errors: true
 
-        - name: Extract Plan Status and Critical Preflight Conditions
+        - name: Extract Plan Status and Preflight Conditions
           ansible.builtin.set_fact:
             plan_is_ready: >-
               {{
@@ -260,11 +264,11 @@
                  | selectattr('type', 'equalto', 'Ready')
                  | selectattr('status', 'equalto', 'True') | list | length > 0)
               }}
-            plan_critical_errors: >-
+            plan_preflight_errors: >-
               {{
                 plan_preflight_info.resources[0].status.conditions | default([])
-                | selectattr('category', 'defined')
-                | selectattr('category', 'equalto', 'Critical')
+                | selectattr('type', 'defined')
+                | rejectattr('type', 'equalto', 'Ready')
                 | map(attribute='message') | list
                 if (plan_preflight_info.resources | default([]) | length > 0)
                 else ['Migration Plan CR was not found on the target cluster.']
@@ -274,8 +278,8 @@
           ansible.builtin.fail:
             msg:
               - "MIGRATION ABORTED! MTV Plan '{{ migration_plan_name }}' is NOT READY."
-              - "Critical Preflight Errors Detected:"
-              - "{{ plan_critical_errors }}"
+              - "Preflight Messages / Errors Detected:"
+              - "{{ plan_preflight_errors }}"
           when: not (plan_is_ready | bool)
 
         - name: Trigger Migration Executions and Monitor Progress
