@@ -177,7 +177,7 @@
             name: infra.openshift_virtualization_migration.mtv_management
 
         # -------------------------------------------------------------------------
-        # PRE-FLIGHT VALIDATION: FAIL FAST BEFORE MTV_MIGRATE RETRIES
+        # PRE-FLIGHT VALIDATION: WAIT FOR FORKLIFT RECONCILIATION & FAIL FAST
         # -------------------------------------------------------------------------
         - name: Fetch Provisioned Migration Plan Status
           kubernetes.core.k8s_info:
@@ -189,6 +189,11 @@
             name: "{{ migration_plan_name }}"
             namespace: "{{ mtv_namespace }}"
           register: plan_preflight_info
+          until: >
+            plan_preflight_info.resources | default([]) | length > 0 and
+            plan_preflight_info.resources[0].status.conditions | default([]) | length > 0
+          retries: 15
+          delay: 3
 
         - name: Extract Plan Status and Critical Preflight Conditions
           ansible.builtin.set_fact:
