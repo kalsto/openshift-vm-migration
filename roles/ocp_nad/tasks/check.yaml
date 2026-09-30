@@ -32,5 +32,5 @@
   ansible.builtin.assert:
     that:
       - missing_ocp_nad | length == 0
-    fail_msg: "Validation failed! Missing NADs on '{{ mtv_ocp_short }}': '{{ target_namespace }}': {{ missing_ocp_nad }}"
-    success_msg: "Validation successful. All nads for '{{ mtv_ocp_short }}' found in '{{ target_namespace }}': '{{ existing_nad_names }}'"
+    fail_msg: "Validation failed! Missing NADs on '{{ mtv_ocp_short }}': '{{ target_namespace | default('default') }}': {{ missing_ocp_nad }}"
+    success_msg: "Validation successful. All nads for '{{ mtv_ocp_short }}' found in '{{ target_namespace | default('default') }}': '{{ existing_nad_names }}'"
