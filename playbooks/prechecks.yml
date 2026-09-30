@@ -21,8 +21,17 @@
       ansible.builtin.debug:
         msg:
           "mtv_ocp_short is {{ mtv_ocp_short }}"
-#      when:
-#        - mtv_tt_debug | default(false)
+      when:
+        - mtv_tt_debug | default(false)
+    - name: "Prechecks | module_defaults"
+      ansible.builtin.module_defaults:
+        group/k8s:
+          host: "{{ openshift_host }}"
+          api_key: "{{ openshift_token }}"
+          validate_certs: false
+    - name: "Prechecks | include_role"
+      ansible.builtin.include_role:
+        name: "../roles/ocp_nad"
       
   
 #  pre_tasks:
@@ -31,8 +40,6 @@
 #        that:
 #          - ansible_limit is defined
 #        fail_msg: "ERROR: You must provide a --limit when executing this playbook"
-  roles:
-    - role: "../roles/ocp_nad"
   
 
   

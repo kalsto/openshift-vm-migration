@@ -12,8 +12,6 @@
   ansible.builtin.debug:
     msg: 
       - "Here's some critical things:"
-      - "k8s host: {{ lookup('env', 'K8S_AUTH_HOST') | default('not found') }}"
-      - "k8s token: {{ lookup('env', 'K8S_AUTH_API_KEY') | default('not found') }}"
       - "openshift_token: {{ openshift_token | default('all group vars not being processed') }}"
       - "openshift_host: {{ openshift_host | default('all group vars not being processed') }}"
   when:
