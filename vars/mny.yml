@@ -1,6 +1,5 @@
 # ==============================================================================
 # MTV Migration Configuration for MNY Target Cluster (ROSA)
-# Console: https://console-openshift-console.apps.rosa.tt-rosa-int.6gxv.p3.openshiftapps.com/
 # File: vars/mny.yml
 # ==============================================================================
 
@@ -28,6 +27,8 @@ mtv_management_map_storage: true
 mtv_management_map_networks: true
 mtv_management_create_secrets: true
 mtv_management_create_providers: true
+mtv_management_create_plans: true
+mtv_management_map_plans: true
 
 vsphere_url: "{{ vault_chi_vsphere_url }}"
 vsphere_user: "{{ vault_chi_vcenter_username }}"
