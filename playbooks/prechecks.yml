@@ -13,7 +13,7 @@
     mtv_tt_debug: true
   vars_files:
     - "../vars/all.yml"
-    - "../vars/{{ mtv_ocp_short }}.yml"
+    - "../vars/{{ vms }}.yml"
     - "../vars/all_vault.yml" 
 
   tasks:
