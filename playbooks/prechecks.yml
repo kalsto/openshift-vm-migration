@@ -13,7 +13,7 @@
     mtv_tt_debug: true
   vars_files:
     - "../vars/all.yml"
-    - "../vars/{{ mtv_ocp_short | default('tbd') }}.yml"
+    - "../vars/{{ mtv_ocp_short }}.yml"
     - "../vars/all_vault.yml" 
 
   tasks:
@@ -21,8 +21,8 @@
       ansible.builtin.debug:
         msg:
           "mtv_ocp_short is {{ mtv_ocp_short }}"
-      when:
-        - mtv_tt_debug | default(false)
+#      when:
+#        - mtv_tt_debug | default(false)
       
   
 #  pre_tasks:
