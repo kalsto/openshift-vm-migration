@@ -72,35 +72,59 @@ mtv_network_maps: &mtv_network_maps
       - source:
           name: "M-DA-VLAN400"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan400"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-VLAN408"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan408"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-VLAN432"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan432"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-VLAN440"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan440"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-VLAN448"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan448"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-VLAN464"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan464"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-ISCSI-1"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan400"
+          namespace: "openshift-mtv"
+
       - source:
           name: "M-DA-ISCSI-2"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ny-vlan400"
+          namespace: "openshift-mtv"
+
       - source:
           name: "VM Network"
         destination:
