@@ -1,3 +1,0 @@
----
-test_vm_name: "{{ tiny_prefix }}_deploy_content_library_ovf"
-test_resource_pool: "{{ tiny_prefix }}_deploy_content_library_ovf"

@@ -41,6 +41,8 @@
           metadata:
             name: "{{ item.name }}"
             namespace: "{{ aap_namespace }}"
+            annotations:
+              force-sync: "{{ lookup('pipe', 'date +%s') }}"
           spec:
             refreshInterval: 1h
             secretStoreRef:
@@ -49,8 +51,10 @@
             target:
               name: "{{ item.name }}"
               creationPolicy: Owner
+              deletionPolicy: Retain
               template:
                 engineVersion: v2
+                mergePolicy: Replace
                 data:
                   host: "{{ rds_host }}"
                   port: "5432"
@@ -84,7 +88,8 @@
         - "{{ eda_db_secret }}"
       register: eso_secrets
       until: >
-        eso_secrets.resources | default([]) | length > 0
+        eso_secrets.resources | default([]) | length > 0 and
+        (eso_secrets.resources[0].data.password | default('') | length) > 0
       retries: 30
       delay: 5
 

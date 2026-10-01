@@ -1,6 +1,0 @@
----
-
-# Default variables for infra.aap_utilities.aap_manage_containerized_services
-svc_action: status
-
-...

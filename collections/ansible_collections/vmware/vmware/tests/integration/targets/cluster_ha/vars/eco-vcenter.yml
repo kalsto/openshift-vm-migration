@@ -1,2 +1,0 @@
----
-test_cluster: "{{ tiny_prefix }}_vmware_cluster_ha"

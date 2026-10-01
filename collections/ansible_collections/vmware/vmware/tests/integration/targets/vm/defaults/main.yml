@@ -1,3 +1,0 @@
----
-test_vm_name: "{{ tiny_prefix }}-vm-module"
-test_iso_path: "[eco-nfs-datastore-iso] custom_esxi_8.iso"

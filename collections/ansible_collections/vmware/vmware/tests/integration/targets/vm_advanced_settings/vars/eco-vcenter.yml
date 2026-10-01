@@ -1,2 +1,0 @@
----
-vm: "{{ tiny_prefix }}-vm_advanced_settings"

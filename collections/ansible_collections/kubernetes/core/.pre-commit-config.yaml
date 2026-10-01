@@ -1,6 +1,0 @@
-repos:
-  - repo: https://github.com/ansible/cloud-content-ci-automation
-    rev: precommit_hook
-    hooks:
-      - id: block-ide-ai-files
-    always_run: true

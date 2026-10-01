@@ -1,2 +1,0 @@
----
-test_folder: "{{ tiny_prefix }}_vmware_folder/nested/test/path"

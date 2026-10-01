@@ -1,2 +1,0 @@
-test_folder: "{{ tiny_prefix }}-folder"
-test_vm_name: "{{ tiny_prefix }}-vm"

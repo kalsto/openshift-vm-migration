@@ -1,2 +1,0 @@
----
-test_vm: "{{ tiny_prefix }}_cluster_drs_vm_overrides_test"

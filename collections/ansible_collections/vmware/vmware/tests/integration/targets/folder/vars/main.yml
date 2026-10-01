@@ -1,3 +1,0 @@
----
-vmware_folder_type: vm
-vmware_folder_absolute_folder_name: /{{ vcenter_datacenter }}/{{ vmware_folder_type }}/{{ test_folder }}

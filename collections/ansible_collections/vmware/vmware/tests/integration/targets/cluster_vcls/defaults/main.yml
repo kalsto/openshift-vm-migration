@@ -1,3 +1,0 @@
----
-test_cluster: DC0_C0
-allowed_datastores: [LocalDS_0]

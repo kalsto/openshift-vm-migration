@@ -1,2 +1,0 @@
----
-test_cluster: "{{ tiny_prefix }}_cluster_info_test"
