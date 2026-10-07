@@ -166,12 +166,16 @@ mtv_migrate_migration_request:
   storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
-  verify_migrations_complete: true
+  # Only block and wait for completion if cutover is immediate; exit cleanly if scheduled
+  verify_migrations_complete: "{{ false if (cutover_time is defined and cutover_time | trim | length > 0) else true }}"
   vms: "{{ source_vms }}"
   warm: "{{ is_warm }}"
   cutover: >-
-    {{
-      cutover_time
-      if (is_warm and cutover_time is defined and cutover_time | trim | length > 0)
-      else (now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') if is_warm else omit)
-    }}
+    {% if is_warm and cutover_time is defined and cutover_time | trim | length > 0 %}
+      {% set ct = cutover_time | trim %}
+      {{ ct if (ct.endswith('Z') or '+' in ct or '-' in ct[10:]) else (ct ~ 'Z') }}
+    {% elif is_warm %}
+      {{ now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') }}
+    {% else %}
+      {{ omit }}
+    {% endif %}
