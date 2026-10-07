@@ -1,0 +1,17 @@
+---
+min_os_version: 7
+valid_power_states:
+  - powered_on
+default_preflight_checks:
+  - name: "os_version"
+    check: "{{ ansible_distribution_major_version | int >= min_os_version }}"
+    fail_msg: "UNSUPPORTED_OS: Found major version {{ ansible_distribution_major_version }}, needing {{ min_os_version }}+"
+  - name: "vm power state"
+    check: "{{ vm_facts.results.instance.hw_power_status in valid_power_states }}"
+    fail_msg: "VM IN Invalid State - must be {{ valid_power_states | join(', ') }}. VM Power state is currently {{ vm_facts.results.instance.hw_power_status }}"
+
+
+
+# Need machine hardware-version
+# CBT must be enabled
+#

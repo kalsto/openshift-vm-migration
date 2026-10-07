@@ -1,4 +1,16 @@
 ---
+- name: "{{ role_name }} | Load default preflight checks"
+  ansible.builtin.include_vars:
+    file: ../../vars/preflight_checks.yml
+
+- name: "{{ role_name }} | Combine global and extra preflight checks"
+  ansible.builtin.set_fact:
+    active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
+
+- name: "{{ role_name }} | initialize failure tracker"
+  ansible.builtin.set_fact:
+    preflight_failures: []
+
 - name: Gather VM facts from vCenter
   community.vmware.vmware_guest_info:
     hostname: "{{ vcenter_host }}"
@@ -10,13 +22,30 @@
   loop: "{{ target_vms }}"
   register: vm_facts
 
+# Run the checks - this must be done once the vm_facts are gathered
+- name: "{{ role_name }} | Evaluate checks"
+  ansible.builtin.set_fact:
+    preflight_failures: "{{ preflight_failures + [item.fail_msg] }}"
+  when: not(item.check | bool)
+  loop: "{{ preflight_checks }}"
+  loop_control:
+    label: "{{ item.fail_msg.split(':')[0] }}"
+
+# System must be powered on
+# Must not have snapshots
+# Must have vmware tools installed
+# must not have cdrom mounted
+#
+- name: Preflight Checks
 - name: Evaluate VM parameters for known MTV migration blockers
   ansible.builtin.set_fact:
     vm_check_results: "{{ vm_check_results | default([]) + [{
       'vm_name': item.instance.hw_name,
       'has_snapshots': (item.instance.snapshots | length > 0),
       'has_cdrom_mounted': (item.instance.hw_cdroms | selectattr('iso_path', 'defined') | length > 0),
-      'power_state': item.instance.hw_power_status
+      'power_state': item.instance.hw_power_status,
+      'vm_tools_installation_status': item.instance.guest_tools_status,
+      'vm_tools_running_status': item.instance.guest_tools_running_status
     }] }}"
   loop: "{{ vm_facts.results }}"
   when: item.instance is defined
