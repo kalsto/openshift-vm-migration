@@ -70,60 +70,60 @@ mtv_network_maps: &mtv_network_maps
     destination_provider: "host"
     map:
       - source:
-          name: "M-DA-VLAN400"
+          name: "M-NY-VLAN400"
         destination:
           type: "multus"
           name: "m-ny-vlan400"
           namespace: "default"
 
       - source:
-          name: "M-DA-VLAN408"
+          name: "M-NY-VLAN408"
         destination:
           type: "multus"
           name: "m-ny-vlan408"
           namespace: "default"
 
       - source:
-          name: "M-DA-VLAN432"
+          name: "M-NY-VLAN432"
         destination:
           type: "multus"
           name: "m-ny-vlan432"
           namespace: "default"
 
       - source:
-          name: "M-DA-VLAN440"
+          name: "M-NY-VLAN440"
         destination:
           type: "multus"
           name: "m-ny-vlan440"
           namespace: "default"
 
       - source:
-          name: "M-DA-VLAN448"
+          name: "M-NY-VLAN448"
         destination:
           type: "multus"
           name: "m-ny-vlan448"
           namespace: "default"
 
       - source:
-          name: "M-DA-VLAN464"
+          name: "M-NY-VLAN464"
         destination:
           type: "multus"
           name: "m-ny-vlan464"
           namespace: "default"
 
-      - source:
-          name: "M-DA-ISCSI-1"
-        destination:
-          type: "multus"
-          name: "m-ny-vlan400"
-          namespace: "default"
-
-      - source:
-          name: "M-DA-ISCSI-2"
-        destination:
-          type: "multus"
-          name: "m-ny-vlan400"
-          namespace: "default"
+#      - source:
+#          name: "M-NY-ISCSI-1"
+#        destination:
+#          type: "multus"
+#          name: "m-ny-vlan400"
+#          namespace: "default"
+#
+#      - source:
+#          name: "M-NY-ISCSI-2"
+#        destination:
+#          type: "multus"
+#          name: "m-ny-vlan400"
+#          namespace: "default"
 
       - source:
           id: "network-24176"
