@@ -1,0 +1,181 @@
+# ==============================================================================
+# MTV Migration Configuration for MNY Target Cluster (ROSA)
+# File: vars/mny.yml
+# ==============================================================================
+
+openshift_server: "{{ vault_mny_target_openshift_host }}"
+openshift_api_key: "{{ vault_mny_target_openshift_token }}"
+openshift_user: "{{ vault_mny_target_openshift_username }}"
+openshift_password: "{{ vault_mny_target_openshift_password }}"
+openshift_validate_certs: false
+
+is_warm: "{{ warm_migration | default(false) | bool }}"
+
+mtv_namespace: "openshift-mtv"
+target_namespace: "{{ target_namespace | default('dev-cluster') }}"
+
+migration_plan_name: "vm-migration-plan"
+
+vsphere_direct_host: "{{ vault_chi_vcenter_host }}"
+mtv_provider_cr_name: "{{ vault_chi_vcenter_fqdn }}"
+
+provider: "vsphere"
+create_plans: true
+map_plans: true
+mtv_create_plans: true
+mtv_map_plans: true
+mtv_management_source_target: "{{ mtv_provider_cr_name }}"
+mtv_management_destination_target: "host"
+mtv_management_provider_namespace: "{{ mtv_namespace }}"
+mtv_management_map_storage: true
+mtv_management_map_networks: true
+mtv_management_create_secrets: true
+mtv_management_create_providers: true
+mtv_management_create_plans: true
+mtv_management_map_plans: true
+
+vsphere_url: "{{ vault_chi_vsphere_url }}"
+vsphere_user: "{{ vault_chi_vcenter_username }}"
+vsphere_password: "{{ vault_chi_vcenter_password }}"
+vsphere_insecure_skip_verify: true
+
+vsphere_datastore: "workloadshare"
+target_storage_class: "gp3-csi"
+
+mtv_secrets: &mtv_secrets
+  - name: "vsphere-credentials"
+    namespace: "{{ mtv_namespace }}"
+    user: "{{ vsphere_user }}"
+    password: "{{ vsphere_password }}"
+    insecureSkipVerify: "{{ vsphere_insecure_skip_verify | string }}"
+    url: "{{ vsphere_url }}"
+mtv_management_secrets: *mtv_secrets
+
+mtv_providers: &mtv_providers
+  - name: "{{ mtv_provider_cr_name }}"
+    namespace: "{{ mtv_namespace }}"
+    type: "vmware"
+    url: "{{ vsphere_url }}"
+    secret: "vsphere-credentials"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
+  - name: "host"
+    namespace: "{{ mtv_namespace }}"
+    type: "openshift"
+mtv_management_providers: *mtv_providers
+
+mtv_network_maps: &mtv_network_maps
+  - name: "mny-vlan-net-map"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "M-NY-VLAN400"
+        destination:
+          type: "multus"
+          name: "m-ny-vlan400"
+          namespace: "default"
+
+      - source:
+          name: "M-NY-VLAN408"
+        destination:
+          type: "multus"
+          name: "m-ny-vlan408"
+          namespace: "default"
+
+      - source:
+          name: "M-NY-VLAN432"
+        destination:
+          type: "multus"
+          name: "m-ny-vlan432"
+          namespace: "default"
+
+      - source:
+          name: "M-NY-VLAN440"
+        destination:
+          type: "multus"
+          name: "m-ny-vlan440"
+          namespace: "default"
+
+      - source:
+          name: "M-NY-VLAN448"
+        destination:
+          type: "multus"
+          name: "m-ny-vlan448"
+          namespace: "default"
+
+      - source:
+          name: "M-NY-VLAN464"
+        destination:
+          type: "multus"
+          name: "m-ny-vlan464"
+          namespace: "default"
+
+#      - source:
+#          name: "M-NY-ISCSI-1"
+#        destination:
+#          type: "multus"
+#          name: "m-ny-vlan400"
+#          namespace: "default"
+#
+#      - source:
+#          name: "M-NY-ISCSI-2"
+#        destination:
+#          type: "multus"
+#          name: "m-ny-vlan400"
+#          namespace: "default"
+
+      - source:
+          id: "network-24176"
+          name: "VM Network"
+        destination:
+          type: "pod"
+mtv_management_network_maps: *mtv_network_maps
+
+mtv_storage_maps: &mtv_storage_maps
+  - name: "chidebmockvc01-int-tt-local-host"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
+    destination_provider: "host"
+    map:
+      - source:
+          name: "{{ vsphere_datastore }}"
+        destination:
+          storageClass: "{{ target_storage_class }}"
+mtv_management_storage_maps: *mtv_storage_maps
+
+mtv_plans: &mtv_plans
+  - name: "{{ migration_plan_name }}"
+    namespace: "{{ mtv_namespace }}"
+    source_provider: "{{ mtv_provider_cr_name }}"
+    destination_provider: "host"
+    network_map: "mny-vlan-net-map"
+    storage_map: "chidebmockvc01-int-tt-local-host"
+    target_namespace: "{{ target_namespace }}"
+    vms: "{{ source_vms }}"
+    warm: "{{ is_warm }}"
+mtv_management_plans: *mtv_plans
+
+mtv_migrate_migration_request:
+  plan_name: "{{ migration_plan_name }}"
+  mtv_namespace: "{{ mtv_namespace }}"
+  target_namespace: "{{ target_namespace }}"
+  source: "{{ mtv_provider_cr_name }}"
+  destination: "host"
+  network_map: "mny-vlan-net-map"
+  storage_map: "chidebmockvc01-int-tt-local-host"
+  start_migration: true
+  verify_plans_ready: true
+  # Only block and wait for completion if cutover is immediate; exit cleanly if scheduled
+  verify_migrations_complete: "{{ false if (cutover_time is defined and cutover_time | trim | length > 0) else true }}"
+  vms: "{{ source_vms }}"
+  warm: "{{ is_warm }}"
+  cutover: >-
+    {% if is_warm and cutover_time is defined and cutover_time | trim | length > 0 %}
+      {% set ct = cutover_time | trim %}
+      {{ ct if (ct.endswith('Z') or '+' in ct or '-' in ct[10:]) else (ct ~ 'Z') }}
+    {% elif is_warm %}
+      {{ now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') }}
+    {% else %}
+      {{ omit }}
+    {% endif %}

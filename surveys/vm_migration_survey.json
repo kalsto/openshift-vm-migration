@@ -1,0 +1,71 @@
+{
+  "name": "VM Migration Execution Survey",
+  "description": "Select target parameters for VM migration",
+  "spec": [
+    {
+      "question_name": "Target OpenShift Cluster",
+      "question_description": "Select the destination OpenShift cluster endpoint",
+      "variable": "selected_openshift_cluster",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "MTY Cluster",
+        "MDA Cluster",
+        "MNY Cluster"
+      ],
+      "default": "MTY Cluster"
+    },
+    {
+      "question_name": "Target OpenShift Namespace",
+      "question_description": "Destination namespace on the target cluster for migrated Virtual Machines",
+      "variable": "target_namespace",
+      "type": "text",
+      "required": true,
+      "default": "openshift-mtv"
+    },
+    {
+      "question_name": "Enable Preflight Inspection",
+      "question_description": "Perform deep guest filesystem inspection. Disable if source VM uses software RAID (mdadm) or non-standard disk layouts.",
+      "variable": "run_preflight_inspection",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "true"
+    },
+    {
+      "question_name": "Skip Guest Conversion",
+      "question_description": "Bypass virt-v2v OS modification. Enable for VMs with Linux software RAID (mdadm), custom kernel drivers, or encrypted disks.",
+      "variable": "skip_guest_conversion",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "false"
+    },
+    {
+      "question_name": "Enable Warm Migration",
+      "question_description": "Perform online CBT disk replication before final cutover shutdown",
+      "variable": "warm_migration",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "true"
+    },
+    {
+      "question_name": "Scheduled Cutover Time (Optional)",
+      "question_description": "ISO-8601 UTC Timestamp (e.g., 2026-09-24T03:00:00Z). Leave blank for immediate cutover upon initial sync completion.",
+      "variable": "cutover_time",
+      "type": "text",
+      "required": false,
+      "default": ""
+    }
+  ]
+}

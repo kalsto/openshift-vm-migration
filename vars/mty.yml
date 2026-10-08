@@ -1,51 +1,47 @@
 # ==============================================================================
-# MTV Migration Configuration for MTY
+# MTV Migration Configuration for MTY Target Cluster
 # File: vars/mty.yml
 # ==============================================================================
 
-# OpenShift Target Cluster Authentication (Targets m-ty spoke cluster via direct API key)
 openshift_server: "{{ vault_mty_target_openshift_host }}"
 openshift_api_key: "{{ vault_mty_target_openshift_token }}"
 openshift_user: "{{ vault_mty_target_openshift_username }}"
 openshift_password: "{{ vault_mty_target_openshift_password }}"
 openshift_validate_certs: false
 
-# Warm Migration Flag (defaults to false/cold; override with warm_migration: true in AAP Extra Vars)
 is_warm: "{{ warm_migration | default(false) | bool }}"
 
-# MTV and Target Namespaces on Target Cluster
 mtv_namespace: "openshift-mtv"
-target_namespace: "openshift-mtv"
+target_namespace: "{{ target_namespace | default('dev-cluster') }}"
 
-# Plan Name
 migration_plan_name: "vm-migration-plan"
 
-# Dual Endpoint Mapping:
-# - vsphere_direct_host: IP used by AAP runner for direct vCenter API calls (VM power-off)
-# - mtv_provider_cr_name: FQDN matching the connected Provider CR on the target cluster
-vsphere_direct_host: "{{ vault_mty_vcenter_host }}"
-mtv_provider_cr_name: "{{ vault_mty_vcenter_fqdn }}"
+vsphere_direct_host: "{{ vault_chi_vcenter_host }}"
+mtv_provider_cr_name: "{{ vault_chi_vcenter_fqdn }}"
 
-# Role Provider Validation Flags
 provider: "vsphere"
+create_plans: true
+map_plans: true
+mtv_create_plans: true
+mtv_map_plans: true
 mtv_management_source_target: "{{ mtv_provider_cr_name }}"
 mtv_management_destination_target: "host"
 mtv_management_provider_namespace: "{{ mtv_namespace }}"
-mtv_management_map_storage: false
+mtv_management_map_storage: true
 mtv_management_map_networks: true
+mtv_management_create_secrets: true
+mtv_management_create_providers: true
+mtv_management_create_plans: true
+mtv_management_map_plans: true
 
-# vSphere Infrastructure Details
-vsphere_url: "{{ vault_mty_vsphere_url }}"
-vsphere_user: "{{ vault_mty_vcenter_username }}"
-vsphere_password: "{{ vault_mty_vcenter_password }}"
+vsphere_url: "{{ vault_chi_vsphere_url }}"
+vsphere_user: "{{ vault_chi_vcenter_username }}"
+vsphere_password: "{{ vault_chi_vcenter_password }}"
 vsphere_insecure_skip_verify: true
 
-# Port Group & Storage Class Definitions on Target Cluster
-vsphere_port_group: "segment-migrating-to-ocpvirt"
 vsphere_datastore: "workloadshare"
 target_storage_class: "ocs-external-storagecluster-ceph-rbd"
 
-# Secret Definitions for MTV Providers
 mtv_secrets: &mtv_secrets
   - name: "vsphere-credentials"
     namespace: "{{ mtv_namespace }}"
@@ -55,32 +51,53 @@ mtv_secrets: &mtv_secrets
     url: "{{ vsphere_url }}"
 mtv_management_secrets: *mtv_secrets
 
-# VMware Provider Definitions (Uses type: vsphere to match working configuration)
-mtv_management_providers: &mtv_management_providers
+mtv_providers: &mtv_providers
   - name: "{{ mtv_provider_cr_name }}"
     namespace: "{{ mtv_namespace }}"
-    type: "vsphere"
+    type: "vmware"
     url: "{{ vsphere_url }}"
     secret: "vsphere-credentials"
-    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:8.0.3"
+    vddkInitImage: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
   - name: "host"
     namespace: "{{ mtv_namespace }}"
     type: "openshift"
+mtv_management_providers: *mtv_providers
 
-# Network Mappings
 mtv_network_maps: &mtv_network_maps
-  - name: "test-network-map"
+  - name: "mty-vlan-net-map"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
     map:
       - source:
-          name: "{{ vsphere_port_group }}"
+          name: "M-TY-VLAN400"
         destination:
-          type: "pod"
+          type: "multus"
+          name: "m-ty-vlan400"
+          namespace: "default"
+
+      - source:
+          name: "M-TY-VLAN432"
+        destination:
+          type: "multus"
+          name: "m-ty-vlan432"
+          namespace: "default"
+
+      - source:
+          name: "M-TY-VLAN448"
+        destination:
+          type: "multus"
+          name: "m-ty-vlan448"
+          namespace: "default"
+
+      - source:
+          name: "M-TY-VLAN464"
+        destination:
+          type: "multus"
+          name: "m-ty-vlan464"
+          namespace: "default"
 mtv_management_network_maps: *mtv_network_maps
 
-# Storage Mappings
 mtv_storage_maps: &mtv_storage_maps
   - name: "chidebmockvc01-int-tt-local-host"
     namespace: "{{ mtv_namespace }}"
@@ -93,30 +110,34 @@ mtv_storage_maps: &mtv_storage_maps
           storageClass: "{{ target_storage_class }}"
 mtv_management_storage_maps: *mtv_storage_maps
 
-# Migration Plans
 mtv_plans: &mtv_plans
   - name: "{{ migration_plan_name }}"
     namespace: "{{ mtv_namespace }}"
     source_provider: "{{ mtv_provider_cr_name }}"
     destination_provider: "host"
-    network_map: "test-network-map"
+    network_map: "mty-vlan-net-map"
     storage_map: "chidebmockvc01-int-tt-local-host"
     target_namespace: "{{ target_namespace }}"
     vms: "{{ source_vms }}"
     warm: "{{ is_warm }}"
 mtv_management_plans: *mtv_plans
 
-# Migration Executions Request
 mtv_migrate_migration_request:
   plan_name: "{{ migration_plan_name }}"
   mtv_namespace: "{{ mtv_namespace }}"
   target_namespace: "{{ target_namespace }}"
   source: "{{ mtv_provider_cr_name }}"
   destination: "host"
-  network_map: "test-network-map"
+  network_map: "mty-vlan-net-map"
   storage_map: "chidebmockvc01-int-tt-local-host"
   start_migration: true
   verify_plans_ready: true
   verify_migrations_complete: true
   vms: "{{ source_vms }}"
   warm: "{{ is_warm }}"
+  cutover: >-
+    {{
+      cutover_time
+      if (is_warm and cutover_time is defined and cutover_time | trim | length > 0)
+      else (now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') if is_warm else omit)
+    }}
