@@ -3,8 +3,33 @@
 # tasks file for mtv_checks
 #
 ---
-- name: Execute MTV Blocker Checks
+- name: "{{ role_name }} | main | setup summary variable"
+  ansible.builtin.set_fact:
+    vm_summary: []
+
+- name: "{{ role_name }} | main | Execute MTV Blocker Checks"
   ansible.builtin.include_tasks: check_blockers.yml
+  loop: "{{ target_vms }}"
+    loop_var: vm
+
+- name: "{{ role_name }} | main | display summary report"
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+            Pre-Flight Migration Summary
+      ========================================
+      {% for vm in vm_summary %}
+      VM NAME: {{ vm.vm_name }} | OVERALL STATUS: {{ vm.overall_status }}
+      ----------------------------------------
+      CHECKS EXECUTED:
+      {% for check in vm.checks %}
+        [{{ 'PASS' if check.passed else 'FAIL' }}] ({{ check.type | upper }}) {{ check.name | ljust(30) }} : {{ check.message }}
+      {% endfor %}
+      ========================================
+      {% endfor %}
+
+
+
 
 # If we want to pre-schedule jobs
 #- name: Schedule Migration Job in AAP

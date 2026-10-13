@@ -1,9 +1,9 @@
 ---
-- name: "{{ role_name }} | Load default preflight checks"
+- name: "{{ role_name }} | check_blockers | Load default preflight checks"
   ansible.builtin.include_vars:
     file: ../../vars/preflight_checks.yml
 
-- name: "{{ role_name }} | Combine global and extra preflight checks"
+- name: "{{ role_name }} | check_blockers | Combine global and extra preflight checks"
   ansible.builtin.set_fact:
     active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
 
@@ -11,44 +11,34 @@
   ansible.builtin.set_fact:
     preflight_failures: []
 
-- name: Gather VM facts from vCenter
+
+- name: "{{ role_name }} | check_blockers | Gather VM facts from vCenter"
   community.vmware.vmware_guest_info:
     hostname: "{{ vcenter_host }}"
     username: "{{ lookup('env', 'VMWARE_USER') }}"
     password: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
     validate_certs: false
     datacenter: "Datacenter"
-    name: "{{ item }}"
-  loop: "{{ target_vms }}"
+    name: "{{ vm }}"
   register: vm_facts
 
 # Run the checks - this must be done once the vm_facts are gathered
-- name: "{{ role_name }} | Evaluate checks"
+- name: "{{ role_name }} | check_blockers | Evaluate checks"
   ansible.builtin.set_fact:
     preflight_failures: "{{ preflight_failures + [item.fail_msg] }}"
+    preflight_succedss: "{{ preflight_success + '[item.name] - PASS'[item.success_msg] }}"
   when: not(item.check | bool)
   loop: "{{ preflight_checks }}"
   loop_control:
     label: "{{ item.fail_msg.split(':')[0] }}"
 
-# System must be powered on
-# Must not have snapshots
-# Must have vmware tools installed
-# must not have cdrom mounted
-#
-- name: Preflight Checks
-- name: Evaluate VM parameters for known MTV migration blockers
-  ansible.builtin.set_fact:
-    vm_check_results: "{{ vm_check_results | default([]) + [{
-      'vm_name': item.instance.hw_name,
-      'has_snapshots': (item.instance.snapshots | length > 0),
-      'has_cdrom_mounted': (item.instance.hw_cdroms | selectattr('iso_path', 'defined') | length > 0),
-      'power_state': item.instance.hw_power_status,
-      'vm_tools_installation_status': item.instance.guest_tools_status,
-      'vm_tools_running_status': item.instance.guest_tools_running_status
-    }] }}"
-  loop: "{{ vm_facts.results }}"
-  when: item.instance is defined
+- name: "{{ role_name }} | check_blockers | show results of checks"
+  ansible.builtin.debug:
+    msg: 
+      - "============= VM {{ ansible_inventory }} ============="
+      - "Success message: {{ preflight_success }}"
+      - "Failure message: {{ preflight_failures }}"
+  when: tt_debug | default(False) | bool
 
 - name: Fail execution if blocker condition exists
   ansible.builtin.fail:
