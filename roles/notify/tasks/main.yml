@@ -1,2 +1,5 @@
 ---
 # tasks file for notify
+#
+- name: "{{ role_name }} | main | Route notification to configured target"
+  ansible.builtin.include_tasks: "{{ notify_target }}.yml"

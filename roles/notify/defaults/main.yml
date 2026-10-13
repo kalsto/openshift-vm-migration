@@ -1,2 +1,25 @@
 ---
 # defaults file for notify
+#
+#
+nofity_target: "slack"
+
+notify_severity: "info"
+notify_title: "Ansible Notification"
+notify_message: "No message specified"
+
+slack_webhook_dev_url:
+slack_webhook_prod_url:
+notify_slack_webhook_url:
+
+
+
+notify_color_map:
+  info: "#36a64f"     # Green
+  warning: "#ffcc00"  # Yellow
+  error: "#ff0000"    # Red
+
+notify_emoji_map:
+  info: ":information_source:"
+  warning: ":warning:"
+  error: ":x:"

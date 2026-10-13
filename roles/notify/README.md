@@ -1,7 +1,18 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+Notification framework to allow ease of managing notifications to the end user. Defaults to a slack message, but could be adjusted to mail or sharepoint or anywhere else as required by adding target endpoint task files.
+
+example usecase:
+within any playbook / role
+- name: Notify on deployment success
+  ansible.builtin.include_role:
+    name: notify
+  vars:
+    notify_title: "Server migration"
+    notify_severity: "info" # Could also be warning or error
+    notify_message: "Migration for {{ <item or some other form of identifier> }} begun"
+
 
 Requirements
 ------------
