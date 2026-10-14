@@ -12,6 +12,8 @@ fallback_aap_url: "{{ vault_int_acm_fallback_aap_url }}"
 rds_host: "{{ vault_rds_host }}"
 aws_secret_id: "{{ vault_aws_secret_id }}"
 
+hub_node_name: "ip-10-76-17-108.eu-west-1.compute.internal"
+
 gateway_db_secret: "rds-gateway-configuration"
 controller_db_secret: "rds-controller-configuration"
 hub_db_secret: "rds-hub-configuration"

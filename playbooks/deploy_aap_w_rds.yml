@@ -170,8 +170,52 @@
       delay: 10
 
     # -------------------------------------------------------------------------
-    # Verify ESO Secrets & Deploy AAP Instance
+    # Provision & Verify ESO Database Secrets
     # -------------------------------------------------------------------------
+    - name: Create ExternalSecret Resources for AAP Databases via ESO
+      kubernetes.core.k8s:
+        host: "{{ openshift_host }}"
+        api_key: "{{ k8s_token }}"
+        validate_certs: false
+        state: present
+        definition:
+          apiVersion: external-secrets.io/v1
+          kind: ExternalSecret
+          metadata:
+            name: "{{ item.name }}"
+            namespace: "{{ aap_namespace }}"
+            annotations:
+              force-sync: "{{ lookup('pipe', 'date +%s') }}"
+          spec:
+            refreshInterval: 1h
+            secretStoreRef:
+              kind: ClusterSecretStore
+              name: aws-secrets-manager
+            target:
+              name: "{{ item.name }}"
+              creationPolicy: Owner
+              deletionPolicy: Retain
+              template:
+                engineVersion: v2
+                mergePolicy: Replace
+                data:
+                  host: "{{ rds_host }}"
+                  port: "5432"
+                  database: "{{ item.db }}"
+                  username: "{{ '{{' }} .username {{ '}}' }}"
+                  password: "{{ '{{' }} .password {{ '}}' }}"
+                  sslmode: "require"
+                  type: "unmanaged"
+            dataFrom:
+              - extract:
+                  key: "{{ aws_secret_id }}"
+      loop:
+        - { name: "{{ gateway_db_secret }}", db: "aap_gateway" }
+        - { name: "{{ controller_db_secret }}", db: "aap_controller" }
+        - { name: "{{ hub_db_secret }}", db: "aap_hub" }
+        - { name: "{{ eda_db_secret }}", db: "aap_eda" }
+      when: aws_secret_id is defined and aws_secret_id | length > 0
+
     - name: Verify ESO Database Secrets Exist
       kubernetes.core.k8s_info:
         host: "{{ openshift_host }}"
@@ -225,6 +269,8 @@
               redis_storage_class: "{{ storage_class }}"
               web:
                 replicas: 1
+                node_selector:
+                  kubernetes.io/hostname: "{{ target_hub_node }}"
               worker:
                 replicas: 1
                 node_selector:
