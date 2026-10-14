@@ -8,9 +8,7 @@ notify_severity: "info"
 notify_title: "Ansible Notification"
 notify_message: "No message specified"
 
-slack_webhook_dev_url:
-slack_webhook_prod_url:
-notify_slack_webhook_url:
+notify_slack_webhook_url: "{{ tt_notify_slack_webhook_url }}"
 
 
 
