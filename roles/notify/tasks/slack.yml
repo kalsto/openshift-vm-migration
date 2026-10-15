@@ -3,10 +3,10 @@
   community.general.slack:
     token: "{{ notify_slack_webhook_url }}"
     color: "{{ notify_color_map[notify_severity] | default('#36a64f') }}"
-  attachments:
-    - title: "{{ notify_emoji_map[notify_severity] | default('') }} {{ notify_title }} [{{ notify_severity | upper }}]"
-      text: "{{ notify_message }}"
-      footer: "Ansible Playbook: {{ ansible_play_name | default('N/A') }}"
-      ts: "{{ ansible_date_time.epoch | default('') }}"
+    attachments:
+      - title: "{{ notify_emoji_map[notify_severity] | default('') }} {{ notify_title }} [{{ notify_severity | upper }}]"
+        text: "{{ notify_message }}"
+        footer: "Ansible Playbook: {{ ansible_play_name | default('N/A') }}"
+        ts: "{{ ansible_date_time.epoch | default('') }}"
   delegate_to: localhost
   run_once: true
