@@ -8,8 +8,9 @@
     - name: Testing simple notification
       ansible.builtin.include_role: 
         name: notify
-      notify_title: "Testing notification"
-      notify_severity: "info"
-      notify_message: "Testing to ensure slack notifications are working from AAP"
+      vars:
+        notify_title: "Testing notification"
+        notify_severity: "info"
+        notify_message: "Testing to ensure slack notifications are working from AAP"
       
   
