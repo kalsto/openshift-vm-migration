@@ -2,7 +2,7 @@
 # defaults file for notify
 #
 #
-nofity_target: "slack"
+notify_target: "slack"
 
 notify_severity: "info"
 notify_title: "Ansible Notification"
