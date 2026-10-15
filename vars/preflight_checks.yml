@@ -15,6 +15,9 @@ default_preflight_checks:
     check: "{{ vm_facts.results.instance.advanced_settings.ctkEnabled | default('FALSE') | bool }}"
     fail_msg: "CBT is not enabled. This is necessary for MTV migrations"
     success_msg: "CBT is enabled"
+  - name: "temporary local account"
+    check: "{{ temp_local_account in (ansible_facts.getent_passwd | default({})) }}"
+    fail_msg: "USER MISSING: Required temporary local account is missing."
 
 
 

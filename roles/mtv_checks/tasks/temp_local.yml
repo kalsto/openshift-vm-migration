@@ -1,0 +1,5 @@
+- name: "{{ role_name }} | gather_fact | local_user"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ local_user }}"
+  failed_when: false

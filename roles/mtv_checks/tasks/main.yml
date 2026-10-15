@@ -1,11 +1,20 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for mtv_checks
-#
----
+
+
 - name: "{{ role_name }} | main | setup summary variable"
   ansible.builtin.set_fact:
     vm_summary: []
+
+- name: "{{ role_name }} | main | temporary local user account"
+  ansible.builtin.include_tasks: temp_local.yml
+- name: "{{ role_name }} | main | vmware"
+  ansible.builtin.include_tasks: vmware.yml
+
+#
+# - name: "Is this where we assert that required vars are located"
+#
 
 - name: "{{ role_name }} | main | Execute MTV Blocker Checks"
   ansible.builtin.include_tasks: check_blockers.yml

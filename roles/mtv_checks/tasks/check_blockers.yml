@@ -11,22 +11,11 @@
   ansible.builtin.set_fact:
     preflight_failures: []
 
-
-- name: "{{ role_name }} | check_blockers | Gather VM facts from vCenter"
-  community.vmware.vmware_guest_info:
-    hostname: "{{ vcenter_host }}"
-    username: "{{ lookup('env', 'VMWARE_USER') }}"
-    password: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
-    validate_certs: false
-    datacenter: "Datacenter"
-    name: "{{ vm }}"
-  register: vm_facts
-
 # Run the checks - this must be done once the vm_facts are gathered
 - name: "{{ role_name }} | check_blockers | Evaluate checks"
   ansible.builtin.set_fact:
     preflight_failures: "{{ preflight_failures + [item.fail_msg] }}"
-    preflight_succedss: "{{ preflight_success + '[item.name] - PASS'[item.success_msg] }}"
+    preflight_succedss: "{{ preflight_success + '[item.name] - PASS' + [item.success_msg] }}"
   when: not(item.check | bool)
   loop: "{{ preflight_checks }}"
   loop_control:
