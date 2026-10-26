@@ -1,10 +1,10 @@
 ---
-- name: Gather VM details directly from vCenter
+- name: Gather VM details directly from vsphere
   community.vmware.vmware_guest_info:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: "{{ vcenter_validate_certs | default(false) }}"
+    hostname: "{{ vsphere_hostname }}"
+    username: "{{ vsphere_username }}"
+    password: "{{ vsphere_password }}"
+    validate_certs: "{{ vsphere_validate_certs | default(false) }}"
     datacenter: "{{ vm_datacenter }}"
     name: "{{ vm_name | default(inventory_hostname) }}"
   delegate_to: localhost
@@ -24,7 +24,7 @@
     content: >
       {{
         {
-          'vcenter': vcenter_hostname,
+          'vsphere': vsphere_hostname,
           'hardware_version': vmware_raw_info.instance.hw_version,
           'cpu': {
             'sockets': vmware_raw_info.instance.hw_cores_per_socket,
