@@ -1,6 +1,5 @@
-#SPDX-License-Identifier: MIT-0
 ---
 - hosts: localhost
   remote_user: root
   roles:
-    - mtv_provider
+    - mtv_user

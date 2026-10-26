@@ -1,0 +1,30 @@
+---
+# When you run this playbook, targets is the name of the hosts
+- name: "batch scan for multiple vm's prior to attempting to migrate"
+  hosts: "{{ targets | default('localhost') }}"
+  gather_facts: false
+
+  # module_defaults:
+  #   group/k8s:
+  #     host: "{{ openshift_server }}"
+  #     api_key: "{{ openshift_api_key }}"
+  #     validate_certs: false
+
+  vars_files:
+    - "../vars/all.yml"
+    - "../vars/all_vault.yml" 
+
+  tasks:
+    - name: "Prechecks | debug"
+      ansible.builtin.debug:
+        msg:
+          "mtv_ocp_short is {{ mtv_ocp_short | default('OCP cluster not specified') }}"
+      when:
+        - mtv_tt_debug | default(false)
+
+    - name: "Prechecks | include_role"
+      ansible.builtin.include_role:
+        name: "../roles/mtv_checks"
+      vars:
+        check_mode: "batch"
+

@@ -1,0 +1,8 @@
+---
+# vars file for mtv_user
+#
+#
+# Follow the format of tt_svc_machine_<ext/int>_user
+local_user: "{{ tt_svc_machine_int_user }}"
+local_user_pass: "{{ tt_svc_machine_int_pass }}"
+local_expiry: "{{ tt_svc_expired_days }}"

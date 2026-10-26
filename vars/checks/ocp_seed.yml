@@ -1,0 +1,12 @@
+---
+# This file contains checks for when we deploy an ocp seed cluster
+# Things like NAD definition, which can take a vlan list from the var file for the cluster and confirm it's got them defined
+# Also confirm MTV operator is installed, vmware provider is configured, and configuration for hot-add is defined
+ocp_seed_checks:
+
+
+# Take the list of vlan's that we expect, and check for all of them. Don't fail outright,
+# but might have to enhance if pre-checking right before a migration, to ensure it has what it needs
+
+# Also check the networkmap
+# Check for the mtv `vsphere` and `host` provider

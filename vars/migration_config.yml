@@ -1,8 +1,8 @@
 ---
 # OpenShift Cluster Authentication (Dynamic lookups from AWX environment)
-openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
-openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
-openshift_validate_certs: false
+# openshift_server: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
+# openshift_api_key: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
+# openshift_validate_certs: false
 
 # MTV and Target Namespaces
 mtv_namespace: "openshift-mtv"

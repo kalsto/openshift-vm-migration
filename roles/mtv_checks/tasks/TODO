@@ -1,0 +1,1 @@
+Go through and make sure we can target the ocp cluster vs vms within each of the checks. not sure the best way to do that..

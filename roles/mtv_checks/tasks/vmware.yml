@@ -1,8 +1,8 @@
-- name: "{{ role_name }} | check_blockers | Gather VM facts from vCenter"
+- name: "{{ role_name }} | check_blockers | Gather VM facts from vsphere"
   community.vmware.vmware_guest_info:
-    hostname: "{{ vcenter_host }}"
-    username: "{{ lookup('env', 'VMWARE_USER') }}"
-    password: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+    hostname: "{{ vsphere_host }}"
+    username: "{{ vsphere_username }}"
+    password: "{{ vsphere_password }}"
     validate_certs: false
     datacenter: "Datacenter"
     name: "{{ vm }}"

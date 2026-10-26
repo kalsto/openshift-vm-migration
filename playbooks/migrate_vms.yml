@@ -5,17 +5,55 @@
   gather_facts: false
   run_once: true
 
-  # Injects AWX environment variables into every task and role run
-  environment:
-    K8S_AUTH_HOST: "{{ lookup('env', 'K8S_AUTH_HOST') }}"
-    K8S_AUTH_API_KEY: "{{ lookup('env', 'K8S_AUTH_API_KEY') }}"
-    K8S_AUTH_VERIFY_SSL: "false"
-
   vars_files:
-    - ../vars/migration_config.yml
+    - "../vars/vault.yml"
 
+
+# TODO Fix this
   pre_tasks:
-    - name: Build source_vms list from selected inventory hosts
+    - name: Dynamically include target cluster variables (mda, mny, or mty)
+      ansible.builtin.include_vars:
+        file: >-
+          ../vars/{{
+            'mda.yml' if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
+            else ('mny.yml' if (selected_openshift_cluster | default('MNY Cluster') == 'MNY Cluster')
+            else 'mty.yml')
+          }}
+
+    - name: Validate that a specific target host limit is defined
+      ansible.builtin.assert:
+        that:
+          - ansible_limit is defined
+          - ansible_limit | trim | length > 0
+          - ansible_limit | trim | lower != 'all'
+          - ansible_limit | trim | lower != '*'
+        fail_msg: "MIGRATION ABORTED! You must specify a specific VM limit via the AAP Limit prompt."
+
+# TODO Fix this
+    - name: Dynamically resolve Target OpenShift Cluster credentials from Vault
+      ansible.builtin.set_fact:
+        openshift_server: >-
+          {{
+            vault_mda_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
+            else (vault_mny_target_openshift_host if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
+            else vault_mty_target_openshift_host)
+          }}
+        openshift_api_key: >-
+          {{
+            vault_mda_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MDA Cluster')
+            else (vault_mny_target_openshift_token if (selected_openshift_cluster | default('MTY Cluster') == 'MNY Cluster')
+            else vault_mty_target_openshift_token)
+          }}
+        # Normalize survey inputs to boolean facts
+        should_run_preflight: "{{ run_preflight_inspection | default(true) | bool }}"
+        should_skip_conversion: "{{ skip_guest_conversion | default(false) | bool }}"
+        is_warm_migration: "{{ warm_migration | default(is_warm | default(true)) | bool }}"
+
+    - name: Generate unique timestamped migration plan name
+      ansible.builtin.set_fact:
+        migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
+
+    - name: Build source_vms list from native AAP limit
       ansible.builtin.set_fact:
         source_vms: "{{ raw_vms_list | from_yaml }}"
       vars:
@@ -29,27 +67,332 @@
         that:
           - source_vms is defined
           - source_vms | length > 0
-        fail_msg: "No valid VMs selected! Select target VMs or specify a limit in AAP."
-        success_msg: "Targeting {{ source_vms | length }} VM(s) for migration: {{ source_vms | map(attribute='name') | list }}"
+        fail_msg: "No valid VMs matched the limit '{{ ansible_limit }}'! Check VM name spelling or inventory sync."
 
-    - name: Generate unique timestamped migration plan name
-      ansible.builtin.set_fact:
-        migration_plan_name: "vm-migration-plan-{{ now(utc=True, fmt='%Y%m%d-%H%M%S') }}"
+    - name: Display Execution Summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "  MIGRATION EXECUTION SUMMARY                                 "
+          - "============================================================"
+          - "  Plan Name:            {{ migration_plan_name }}"
+          - "  Target Limit:         {{ ansible_limit }}"
+          - "  Source vCenter:       {{ vsphere_direct_host }}"
+          - "  Target OpenShift:     {{ selected_openshift_cluster | default('MTY Cluster') }} ({{ openshift_server }})"
+          - "  Target Namespace:     {{ target_namespace }}"
+          - "  Warm Migration:       {{ is_warm_migration }}"
+          - "  Preflight Inspection: {{ should_run_preflight }}"
+          - "  Skip Guest Conversion:{{ should_skip_conversion }}"
+          - "============================================================"
+
+    # -------------------------------------------------------------------------
+    # PRE-CHECK: CBT VALIDATION FOR WARM MIGRATIONS
+    # -------------------------------------------------------------------------
+    - name: Query vSphere for Changed Block Tracking (CBT) status
+      community.vmware.vmware_guest_info:
+        hostname: "{{ vsphere_direct_host }}"
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_password }}"
+        validate_certs: false
+        name: "{{ item.name }}"
+      loop: "{{ source_vms }}"
+      register: vm_cbt_check
+      when: is_warm_migration | bool
+      delegate_to: localhost
+
+    - name: Assert CBT is enabled on all VMs for warm migration
+      ansible.builtin.assert:
+        that:
+          - (item.instance.change_tracking | default(false) | bool) or
+            (item.instance.advanced_settings.ctkEnabled | default('false') | bool)
+        fail_msg: "WARM MIGRATION ABORTED! VM '{{ item.item.name }}' does not have Changed Block Tracking (CBT) enabled in vSphere. Enable CBT on the VM or perform a cold migration."
+      loop: "{{ vm_cbt_check.results | default([]) }}"
+      when:
+        - is_warm_migration | bool
+        - item.skipped is not defined or not item.skipped
+
+    - name: Power off source VMs in vSphere when performing cold migration
+      community.vmware.vmware_guest:
+        hostname: "{{ vsphere_direct_host }}"
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_password }}"
+        validate_certs: false
+        name: "{{ item.name }}"
+        state: poweredoff
+      loop: "{{ source_vms }}"
+      when: not (is_warm_migration | bool)
+      delegate_to: localhost
 
   tasks:
-    - name: Ensure Target Namespace Exists
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: "{{ target_namespace }}"
+    - name: Execute MTV Migration Roles
+      environment:
+        K8S_AUTH_HOST: "{{ openshift_server }}"
+        K8S_AUTH_API_KEY: "{{ openshift_api_key }}"
+        K8S_AUTH_VERIFY_SSL: "false"
+      block:
+        - name: Ensure Target Namespace Exists on Target Cluster
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: "{{ target_namespace }}"
 
-    - name: Provision Secrets, Providers, Maps, and Migration Plans
-      ansible.builtin.include_role:
-        name: infra.openshift_virtualization_migration.mtv_management
+        - name: Ensure Global ForkliftController Uses VDDK Image
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: ForkliftController
+              metadata:
+                name: forklift-controller
+                namespace: "{{ mtv_namespace }}"
+              spec:
+                vddk_init_image: "image-registry.openshift-image-registry.svc:5000/openshift-mtv/vddk:latest"
 
-    - name: Trigger Migration Executions and Monitor Progress
-      ansible.builtin.include_role:
-        name: infra.openshift_virtualization_migration.mtv_migrate
+        - name: Ensure Target NetworkMap CR Exists on Target Cluster
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: NetworkMap
+              metadata:
+                name: "{{ item.name }}"
+                namespace: "{{ item.namespace }}"
+              spec:
+                provider:
+                  source:
+                    name: "{{ item.source_provider }}"
+                    namespace: "{{ item.namespace }}"
+                  destination:
+                    name: "{{ item.destination_provider }}"
+                    namespace: "{{ item.namespace }}"
+                map: "{{ item.map }}"
+          loop: "{{ mtv_network_maps }}"
+          when: mtv_network_maps is defined and mtv_network_maps | length > 0
+
+        - name: Ensure Target StorageMap CR Exists on Target Cluster
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: StorageMap
+              metadata:
+                name: "{{ item.name }}"
+                namespace: "{{ item.namespace }}"
+              spec:
+                provider:
+                  source:
+                    name: "{{ item.source_provider }}"
+                    namespace: "{{ item.namespace }}"
+                  destination:
+                    name: "{{ item.destination_provider }}"
+                    namespace: "{{ item.namespace }}"
+                map: "{{ item.map }}"
+          loop: "{{ mtv_storage_maps }}"
+          when: mtv_storage_maps is defined and mtv_storage_maps | length > 0
+
+        - name: Provision Secrets, Providers, Maps, and Migration Plans via Role
+          ansible.builtin.include_role:
+            name: infra.openshift_virtualization_migration.mtv_management
+
+        - name: Explicitly Provision Migration Plan CR
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: present
+            definition:
+              apiVersion: forklift.konveyor.io/v1beta1
+              kind: Plan
+              metadata:
+                name: "{{ migration_plan_name }}"
+                namespace: "{{ mtv_namespace }}"
+              spec:
+                provider:
+                  source:
+                    name: "{{ mtv_provider_cr_name }}"
+                    namespace: "{{ mtv_namespace }}"
+                  destination:
+                    name: "host"
+                    namespace: "{{ mtv_namespace }}"
+                map:
+                  network:
+                    name: "{{ mtv_network_maps[0].name }}"
+                    namespace: "{{ mtv_namespace }}"
+                  storage:
+                    name: "{{ mtv_storage_maps[0].name }}"
+                    namespace: "{{ mtv_namespace }}"
+                targetNamespace: "{{ target_namespace }}"
+                vms: "{{ source_vms }}"
+                warm: "{{ is_warm_migration }}"
+                runPreflightInspection: "{{ should_run_preflight }}"
+                skipGuestConversion: "{{ should_skip_conversion }}"
+
+        # -------------------------------------------------------------------------
+        # PRE-FLIGHT VALIDATION: WAIT FOR FORKLIFT RECONCILIATION & FAIL FAST
+        # -------------------------------------------------------------------------
+        - name: Fetch Provisioned Migration Plan Status
+          kubernetes.core.k8s_info:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            api_version: forklift.konveyor.io/v1beta1
+            kind: Plan
+            name: "{{ migration_plan_name }}"
+            namespace: "{{ mtv_namespace }}"
+          register: plan_preflight_info
+          until: >
+            (plan_preflight_info.resources | default([]) | length > 0) and
+            (plan_preflight_info.resources[0].status.conditions | default([])
+             | selectattr('type', 'defined')
+             | selectattr('type', 'equalto', 'Ready')
+             | selectattr('status', 'equalto', 'True') | list | length > 0)
+          retries: 20
+          delay: 5
+          ignore_errors: true
+
+        - name: Extract Plan Status and Preflight Conditions
+          ansible.builtin.set_fact:
+            plan_is_ready: >-
+              {{
+                (plan_preflight_info.resources | default([]) | length > 0) and
+                (plan_preflight_info.resources[0].status.conditions | default([])
+                 | selectattr('type', 'defined')
+                 | selectattr('type', 'equalto', 'Ready')
+                 | selectattr('status', 'equalto', 'True') | list | length > 0)
+              }}
+            plan_preflight_errors: >-
+              {{
+                plan_preflight_info.resources[0].status.conditions | default([])
+                | selectattr('type', 'defined')
+                | rejectattr('type', 'equalto', 'Ready')
+                | map(attribute='message') | list
+                if (plan_preflight_info.resources | default([]) | length > 0)
+                else ['Migration Plan CR was not found on the target cluster.']
+              }}
+
+        - name: Abort Playbook Immediately on Preflight Validation Failures
+          ansible.builtin.fail:
+            msg:
+              - "MIGRATION ABORTED! MTV Plan '{{ migration_plan_name }}' is NOT READY."
+              - "Preflight Messages / Errors Detected:"
+              - "{{ plan_preflight_errors }}"
+          when: not (plan_is_ready | bool)
+
+        - name: Trigger Migration Executions and Monitor Progress
+          ansible.builtin.include_role:
+            name: infra.openshift_virtualization_migration.mtv_migrate
+
+  post_tasks:
+    # -------------------------------------------------------------------------
+    # POST-MIGRATION VERIFICATION & AUTOMATED ROLLBACK
+    # -------------------------------------------------------------------------
+    - name: Query Plan Status from Target OpenShift Cluster
+      kubernetes.core.k8s_info:
+        host: "{{ openshift_server }}"
+        api_key: "{{ openshift_api_key }}"
+        validate_certs: false
+        api_version: forklift.konveyor.io/v1beta1
+        kind: Plan
+        name: "{{ migration_plan_name }}"
+        namespace: "{{ mtv_namespace }}"
+      register: plan_status_info
+      ignore_errors: true
+
+    - name: Determine Failed VMs from Plan Conditions
+      ansible.builtin.set_fact:
+        failed_vms: "{{ raw_failed_vms | from_json }}"
+      vars:
+        raw_failed_vms: |
+          {% set fvms = [] %}
+          {% if plan_status_info.resources is defined and plan_status_info.resources | length > 0 %}
+            {% for vm in plan_status_info.resources[0].status.migration.vms | default([]) %}
+              {% set ns = namespace(failed=false) %}
+              {% for cond in vm.conditions | default([]) %}
+                {% if cond.type | default('') == 'Failed' and cond.status | default('') == 'True' %}
+                  {% set ns.failed = true %}
+                {% endif %}
+              {% endfor %}
+              {% if ns.failed %}
+                {% set _ = fvms.append(vm.name) %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            {% set fvms = source_vms | map(attribute='name') | list %}
+          {% endif %}
+          {{ fvms | to_json }}
+
+    - name: Set Plan Failure Flag
+      ansible.builtin.set_fact:
+        plan_has_failed: "{{ (failed_vms | length) > 0 }}"
+
+    - name: Display Final Migration Summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "  MIGRATION EXECUTION COMPLETED                              "
+          - "============================================================"
+          - "  Plan Name:        {{ migration_plan_name }}"
+          - "  Failed VMs:       {{ failed_vms }}"
+          - "  Plan Failed:      {{ plan_has_failed }}"
+          - "============================================================"
+
+    - name: Execute Automated Rollback Block
+      when: plan_has_failed | bool
+      block:
+        - name: ROLLBACK - Power back ON failed source VMs in vSphere
+          community.vmware.vmware_guest:
+            hostname: "{{ vsphere_direct_host }}"
+            username: "{{ vsphere_user }}"
+            password: "{{ vsphere_password }}"
+            validate_certs: false
+            name: "{{ item }}"
+            state: poweredon
+          loop: "{{ failed_vms }}"
+          delegate_to: localhost
+          ignore_errors: true
+
+        - name: ROLLBACK - Delete failed VirtualMachine CRs on OpenShift
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: absent
+            api_version: kubevirt.io/v1
+            kind: VirtualMachine
+            name: "{{ item }}"
+            namespace: "{{ target_namespace }}"
+          loop: "{{ failed_vms }}"
+          ignore_errors: true
+
+        - name: ROLLBACK - Delete orphan PersistentVolumeClaims on OpenShift
+          kubernetes.core.k8s:
+            host: "{{ openshift_server }}"
+            api_key: "{{ openshift_api_key }}"
+            validate_certs: false
+            state: absent
+            api_version: v1
+            kind: PersistentVolumeClaim
+            namespace: "{{ target_namespace }}"
+            label_selectors:
+              - "vm.kubevirt.io/name={{ item }}"
+          loop: "{{ failed_vms }}"
+          ignore_errors: true
+
+        - name: MIGRATION FAILED - Terminate AAP Playbook with Error
+          ansible.builtin.fail:
+            msg: "MIGRATION FAILED! Automated rollback completed for VMs: {{ failed_vms }}. Source VMs powered back ON in vSphere and temporary OpenShift resources cleaned up."

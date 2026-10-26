@@ -1,0 +1,17 @@
+---
+# This file will contain checks for vmware - this could be a pre-scan bulk check, or a pre-migration confirmation check
+# Check for cbt enabled
+# Check for mounted cdrom
+# Check for pre-existing snapshots
+# Check for whether the system has hot-add cpu/memory
+vmware_checks:
+  - name: "vm power state"
+    level: "warning"
+    check: "{{ vm_facts.results.instance.hw_power_status in valid_power_states }}"
+    fail_msg: "VM IN Invalid State - must be {{ valid_power_states | join(', ') }}. VM Power state is currently {{ vm_facts.results.instance.hw_power_status }}"
+    success_msg: "VM is in state {{ vm_facts.results.instance.hw_power_status }}"
+  - name: "cbt enabled"
+    level: "warn_fail"
+    check: "{{ vm_facts.results.instance.advanced_settings.ctkEnabled | default('FALSE') | bool }}"
+    fail_msg: "CBT is not enabled. This is necessary for warm MTV migrations"
+    success_msg: "CBT is enabled"

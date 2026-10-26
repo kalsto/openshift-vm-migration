@@ -1,7 +1,7 @@
 ---
-# vsphere universal variables
-vsphere_user: "{{ tt_vsphere_user | default('') }}"
-vsphere_pass: "{{ tt_vsphere_pass | default('') }}"
+# vsphere universal variables - should be in the all_vault
+vsphere_username: "{{ tt_vsphere_username | default('') }}"
+vsphere_password: "{{ tt_vsphere_password | default('') }}"
 vsphere_storage_class: "{{ tt_vsphere_storage_class | default('') }}"
 vsphere_port_group: "{{ tt_vsphere_port_group | default('') }}"
 vsphere_datastore: "{{ tt_vsphere_datastore | default('') }}"
@@ -11,23 +11,39 @@ vddk_image_location: "{{ tt_vddk_image_location | default('') }}"
 cicd_vm_repo: "{{ tt_cicd_vm_report | default('') }}"
 github_deploy_pat: "{{ tt_github_deploy_pat | default('') }}" # or token, or something to push code to the {{ tt_cicd_vm_repo }}
 mtv_namespace: "{{ tt_mtv_namespace | default('') }}" # Not that secret, but for simplicity, put it in the vault
-mtv_dest_namespace: "{{ tt_mtv_dest_namespace | default('') }}"
-mtv_ocp_provider: "host"
+mtv_target_provider: "{{ tt_mtv_target_provider }}"
 
-
-# Distinct to each cluster - the tt_variables will be set in the host_vars vaulted file
-vsphere_host: "{{ ansible_host | default('tbd') }}"
-openshift_host: "{{ tt_openshift_host | default('tbd') }}"
-openshift_username: "{{ tt_openshift_username | default('tbd') }}"
-openshift_password: "{{ tt_openshift_password | default('tbd') }}"
-openshift_token:  "{{ tt_openshift_token | default('tbd') }}"
+# Distinct to each cluster - the tt_variables will be set in the cluster vaulted file
+vsphere_host: "{{ tt_vsphere_host | default('tbd') }}"
+openshift_server: "{{ tt_openshift_server }}"
+openshift_api_key: "{{ tt_openshift_token }}"
+openshift_user: "{{ tt_openshift_username }}"
+openshift_password: "{{ tt_openshift_password }}"
+openshift_validate_certs: false
+mtv_source_provider: "{{ tt_mtv_source_provider }}"
 
 openshift_nad: "{{ tt_openshift_nad | default('tbd') }}"
 network_map: "{{ tt_mtv_network_map | default('tbd') }}"
 storage_map: "{{ tt_mtv_storage_map | default('tbd') }}"
 
 mtv_ocp_short: "tbd"
-ocp_nad_naming_convention: "tbd"
+ocp_nad_naming_convention: "{{ tt_ocp_nad_naming_convention }}"
+
+# MTV Collection variables
+# provider: "vsphere" USE MTV_SOURCE_PROVIDER instead
+create_plans: true
+map_plans: true
+mtv_create_plans: true
+mtv_map_plans: true
+mtv_management_source_target: "{{ mtv_provider_cr_name }}"
+mtv_management_destination_target: "{{ tt_mtv_destination_provider }}"
+mtv_management_provider_namespace: "{{ mtv_namespace }}"
+mtv_management_map_storage: true
+mtv_management_map_networks: true
+mtv_management_create_secrets: true
+mtv_management_create_providers: true
+mtv_management_create_plans: true
+mtv_management_map_plans: true
 
 ocp_required_vlans: # For the few known 1-offs, this can be overridden in the specific host_vars vaulted file
   - "37"

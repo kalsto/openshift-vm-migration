@@ -1,0 +1,7 @@
+---
+# This file will contain things like ping tests
+
+common_checks:
+  - name: "Ping Test"
+    level: "warn_fail"
+    fail_msg: "AAP can't reach {{ ansible_inventory }} - this shouldn't happen"

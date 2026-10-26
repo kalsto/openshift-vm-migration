@@ -1,21 +1,26 @@
 ---
 - name: "{{ role_name }} | check_blockers | Load default preflight checks"
   ansible.builtin.include_vars:
-    file: ../../vars/preflight_checks.yml
+    file: ../../vars/checks_preflight.yml
 
 - name: "{{ role_name }} | check_blockers | Combine global and extra preflight checks"
   ansible.builtin.set_fact:
     active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
 
-- name: "{{ role_name }} | initialize failure tracker"
+- name: "{{ role_name }} | initialize severity trackers"
   ansible.builtin.set_fact:
-    preflight_failures: []
+    preflight_warnings: []
+    preflight_warn_failures: []
+    preflight_hard_failures: []
+
+
+- name: "{{ role_name }} | gather details
 
 # Run the checks - this must be done once the vm_facts are gathered
 - name: "{{ role_name }} | check_blockers | Evaluate checks"
   ansible.builtin.set_fact:
     preflight_failures: "{{ preflight_failures + [item.fail_msg] }}"
-    preflight_succedss: "{{ preflight_success + '[item.name] - PASS' + [item.success_msg] }}"
+    preflight_success: "{{ preflight_success + '[item.name] - PASS' + [item.success_msg] }}"
   when: not(item.check | bool)
   loop: "{{ preflight_checks }}"
   loop_control:

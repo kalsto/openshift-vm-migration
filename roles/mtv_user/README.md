@@ -1,7 +1,7 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+This role will be used to manage the lifecycle for the temporary local account on systems. 
 
 Requirements
 ------------

@@ -1,0 +1,4 @@
+- name: "{{ role_name }} | batch_checks | ocp assert required variables"
+  ansible.builtin.assert:
+    that:
+      - vsphere_host is defined

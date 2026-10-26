@@ -1,0 +1,26 @@
+---
+# tasks file for mtv_user
+
+- name: "{{ role_name }} | main | hash user password"
+  ansible.builtin.set_fact:
+    local_user_pass_hash: "{{ local_user_pass | ansible.builtin.password_hash('sha512') }}"
+  no_log: true
+
+# Expire this account in (default 30) days. Set variable local_expiry to adjust
+- name: "{{ role_name }} | main | Calculate expiry and removal dates"
+  ansible.builtin.set_fact:
+    calculated_expiry_date: "{{ (ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%SZ')) + timedelta(days=(local_expiry | int)) }}"
+    calculated_removal_date: "{{ (ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%SZ')) + timedelta(days=(local_expiry | int + local_removal | int)) }}"
+
+  
+- name: "{{ role_name }} | main | create local account"
+  ansible.builtin.user:
+    name: "{{ local_user }}"
+    state: present
+    shell: /bin/bash
+    password_expireaccount_disable: 0
+    password_expire_max: "{{ local_expiry }}"
+    expires: "{{ calculated_expiry_date.strftime('%s') }}"
+    comment: "Managed by Ansible - temporary account specifically for OpenShift Virtualization  migration project"
+    
+    
