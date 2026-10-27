@@ -64,7 +64,7 @@
 - name: "{{ role_name }} | main | setup summary variable and target"
   ansible.builtin.set_fact:
     precheck_summary: []
-    precheck_target: "{{ ansible_batch_play }}"
+    precheck_target: "{{ ansible_play_batch }}"
 
 - name: "{{ role_name }} | main | Execute MTV Blocker Checks"
   ansible.builtin.include_tasks: check_blockers.yml
