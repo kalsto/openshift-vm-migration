@@ -14,7 +14,7 @@
         that:
           - ansible_limit is defined
           - ansible_limit | length > 0
-      fail_msg: "You must provide a limit, or this job will not run"
+        fail_msg: "You must provide a limit, or this job will not run"
 
     # - name: Build source_vms list from native AAP limit
     #   ansible.builtin.set_fact:
