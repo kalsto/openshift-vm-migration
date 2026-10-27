@@ -1,0 +1,46 @@
+---
+# This file will collect the checks to be done before a migration
+- name: "{{ role_name }} | migration_checks | Assert limit is provided"
+  ansible.builtin.assert:
+    that:
+      - ansible_limit is defined
+      - ansible_limit | length > 0
+      - ansible_limit != 'all'
+    fail_msg: "You must provide a limit of which vm's are to be checked for now"
+
+- name: "{{ role_name }} | batch_checks | include vmware checks"
+  ansible.builtin.include_vars:
+    file: "{{ playbok_dir }}../vars/checks/vmware.yml"
+
+- name: "{{ role_name }} | batch_checks | include preflight checks"
+  ansible.builtin.include_vars:
+    file: "{{ playbok_dir }}../vars/checks/preflight.yml"
+
+- name: "{{ role_name }} | main | temporary local user account"
+  ansible.builtin.include_tasks: 
+    file: temp_local.yml
+    
+- name: "{{ role_name }} | main | vmware"
+  ansible.builtin.include_tasks: 
+    file: vmware.yml
+
+- name: "{{ role_name }} | batch_checks | combine checks"
+  ansible.builtin.set_fact:
+    active_preflight_checks: "{{ common_checks | combine(vmware_checks, recursive=True) }}"
+
+- name: "{{ role_name }} | batch_checks | ocp assert required variables"
+  ansible.builtin.assert:
+    that:
+      - vsphere_host is defined
+  fail_msg: "For batch checks, vsphere_host is a required variable"
+
+- name: "{{ role_name }} | batch_checks | Collect AAP Inventory information"
+  ansible.controller.inventory_info:
+    validate_certs: false
+    name: "{{ vsphere_host }}"
+  register: vsphere_facts
+  no_log: True
+
+- name: "{{ role_name }} | batch_checks | Collect nad information"
+  ansible.builtin.include_tasks:
+    file: "nad.yml"

@@ -11,9 +11,10 @@ default_preflight_checks:
   - name: "temporary local account"
     check: "{{ temp_local_account in (ansible_facts.getent_passwd | default({})) }}"
     fail_msg: "USER MISSING: Required temporary local account is missing."
-  - name: "nad check"
-    check: "{{ missing_ocp_nad | length == 0 }}"
-    fail_msg: "Missing NAD: {{ missing_ocp_nad }}"
+ 
+  # - name: "nad check"
+  #   check: "{{ missing_ocp_nad | length == 0 }}"
+  #   fail_msg: "Missing NAD: {{ missing_ocp_nad }}"
 
 
 

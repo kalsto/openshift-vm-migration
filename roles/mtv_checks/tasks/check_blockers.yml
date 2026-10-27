@@ -1,41 +1,62 @@
 ---
-- name: "{{ role_name }} | check_blockers | Load default preflight checks"
-  ansible.builtin.include_vars:
-    file: ../../vars/checks_preflight.yml
+# - name: "{{ role_name }} | check_blockers | Load default preflight checks"
+#   ansible.builtin.include_vars:
+#     file: ../../vars/checks_preflight.yml
 
-- name: "{{ role_name }} | check_blockers | Combine global and extra preflight checks"
-  ansible.builtin.set_fact:
-    active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
+# - name: "{{ role_name }} | check_blockers | Combine global and extra preflight checks"
+#   ansible.builtin.set_fact:
+#     active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
 
 - name: "{{ role_name }} | check_blockers |check_blockers |initialize severity trackers"
   ansible.builtin.set_fact:
+    preflight_successes: []
     preflight_warnings: []
     preflight_warn_failures: []
     preflight_hard_failures: []
 
-
-- name: "{{ role_name }} | check_blockers |gather details
-
-# Run the checks - this must be done once the vm_facts are gathered
-- name: "{{ role_name }} | check_blockers | Evaluate checks"
+- name: "{{ role_name }} | check_blockers | Evaluate positive checks"
   ansible.builtin.set_fact:
-    preflight_failures: "{{ preflight_failures + [item.fail_msg] }}"
-    preflight_success: "{{ preflight_success + '[item.name] - PASS' + [item.success_msg] }}"
-  when: not(item.check | bool)
-  loop: "{{ preflight_checks }}"
+    preflight_successes: >-
+      {{
+        preflight_success + '[item.name] - PASS' + [item.success_msg]
+      }}
+    preflight_warnings: >-
+      {{ 
+        preflight_warnings + [item.fail_msg]
+        if (not (item.check | bool) and (item.level | default('warning') == 'warning'))
+        else preflight_warnings
+      }}
+    preflight_warn_failures: >-
+      {{ 
+        preflight_warn_failures + [item.fail_msg]
+        if (not (item.check | bool) and (item.level | default('warning') == 'warn_fail'))
+        else preflight_warn_failures
+      }}
+    preflight_hard_failures: >-
+      {{ 
+        preflight_hard_failures + [item.fail_msg]
+        if (not (item.check | bool) and (item.level | default('warning') == 'hard_fail'))
+        else preflight_hard_failures
+      }}
+  
+  loop: "{{ active_preflight_checks }}"
   loop_control:
-    label: "{{ item.fail_msg.split(':')[0] }}"
+    label: "{{ item.name }}"
+    # label: "{{ item.fail_msg.split(':')[0] }}"
 
-- name: "{{ role_name }} | check_blockers | show results of checks"
+- name: "{{ role_name }} | check_blockers | show results of checks for each target"
   ansible.builtin.debug:
     msg: 
-      - "============= VM {{ ansible_inventory }} ============="
-      - "Success message: {{ preflight_success }}"
-      - "Failure message: {{ preflight_failures }}"
+      - "============= VM {{ target }} ============="
+      - "Success messages: {{ preflight_success }}"
+      - "Warning messages: {{ preflight_failures }}"
+      - "Soft failure messages: {{ preflight_warn_failures }}"
+      - "Hard failure messages: {{ preflight_hard_failures }}"
+
   when: tt_debug | default(False) | bool
 
-- name: "{{ role_name }} | check_blockers | Fail execution if blocker condition exists"
-  ansible.builtin.fail:
-    msg: "MTV Blocker detected on VM {{ item.vm_name }}: active snapshots or mounted CD-ROMs found."
-  when: item.has_snapshots or item.has_cdrom_mounted
-  loop: "{{ vm_check_results }}"
+# - name: "{{ role_name }} | check_blockers | Fail execution if blocker condition exists"
+#   ansible.builtin.fail:
+#     msg: "MTV Blocker detected on VM {{ item.vm_name }}: active snapshots or mounted CD-ROMs found."
+#   when: item.has_snapshots or item.has_cdrom_mounted
+#   loop: "{{ vm_check_results }}"

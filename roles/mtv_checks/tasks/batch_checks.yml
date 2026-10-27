@@ -1,5 +1,7 @@
 # In this file, we're going to query the vmware host to collect the vm's to run tests against
 
+
+
 - name: "{{ role_name }} | batch_checks | include vmware checks"
   ansible.builtin.include_vars:
     file: "{{ playbok_dir }}../vars/checks/vmware.yml"

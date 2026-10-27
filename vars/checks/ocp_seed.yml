@@ -3,7 +3,10 @@
 # Things like NAD definition, which can take a vlan list from the var file for the cluster and confirm it's got them defined
 # Also confirm MTV operator is installed, vmware provider is configured, and configuration for hot-add is defined
 ocp_seed_checks:
-
+  - name: "nad check"
+    check: "{{ missing_ocp_nad | length == 0 }}"
+    fail_msg: "Missing NAD: {{ missing_ocp_nad }}"
+    success_msg: "No NAD's reported missing"
 
 # Take the list of vlan's that we expect, and check for all of them. Don't fail outright,
 # but might have to enhance if pre-checking right before a migration, to ensure it has what it needs

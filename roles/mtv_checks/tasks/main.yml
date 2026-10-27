@@ -1,6 +1,10 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for mtv_checks
+# Batch Scan mode will look at the vsphere inventory in AAP, and then do the vmware checks for each vm in the limit variable
+# Seed scan mode will look at the ocp seed cluster and check for known configuration requirements there
+# Migration mode will look at both batch scan and vm pre-checks (ip address, fqdn, vmware tools, local account, etc)
+
 
 # Batch scan will require vmware endpoint - pulled from the mtv_ocp_short variable (which would also be the inventory name)
 # -- alternatively, it needs an extra variable with vsphere_host passed in
@@ -12,52 +16,61 @@
       - mtv_ocp_short is defined and mtv_ocp_short in allowed_mtv_ocp_short
     fail_msg: "Please check mandatory inputs. check_mode and mtv_ocp_short are required"
 
-- name: "{{ role_name }} | main | include cluster variables via ocp_short variable"
+- name: "{{ role_name }} | batch_checks | Assert limit is provided"
+  ansible.builtin.assert:
+    that:
+      - ansible_limit is defined
+      - ansible_limit | length > 0
+      - ansible_limit != 'all'
+    fail_msg: "You must provide a limit of which vm's are to be checked for now"
+
+- name: "{{ role_name }} | main | include cluster variables via mtv_ocp_short variable"
   ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../vars/cluster_vars/{{ ocp_short }}.yml"
+    file: "{{ playbook_dir }}/../vars/cluster_vars/{{ mtv_ocp_short }}.yml"
 
 - name: "{{ role_name }} | main | include common checks"
-  ansible.builtin.include_tasks:
+  ansible.builtin.include_vars:
     file: "{{ playbook_dir }}/../vars/checks/common.yml"
 
-- name: "{{ role_name }} | main | setup summary variable"
-  ansible.builtin.set_fact:
-    precheck_summary: []
-
-- name: "{{ role_name }} | main | migration precheck block"
+- name: "{{ role_name }} | main | migration check block"
   block:
-    - name: "{{ role_name }} | main | set precheck target"
+    - name: "{{ role_name }} | main | prepare migration checks"
+      ansible.builtin.include_tasks:
+        file: "migration_checks.yml"
+    
+    - name: "{{ role_name }} | main | set check target"
       ansible.builtin.set_fact: 
         precheck_target: "{{ target }}"
-    - name: "{{ role_name }} | main | temporary local user account"
-      ansible.builtin.include_tasks: 
-        file: temp_local.yml
-    - name: "{{ role_name }} | main | vmware"
-      ansible.builtin.include_tasks: 
-        file: vmware.yml
+
   when: check_mode == 'migration'
 
-- name: "{{ role_name }} | main | batch precheck block"
+- name: "{{ role_name }} | main | batch check block"
   block:
-    - name: "{{ role_name }} main | run batch checks"
+    - name: "{{ role_name }} main | prepare batch checks"
       ansible.builtin.include_tasks:
-        file: batch_checks.yml
+        file: "batch_checks.yml"
   when: check_mode == 'batch'
 
-- name: "{{ role_name }} | main | ocp precheck block"
+- name: "{{ role_name }} | main | ocp seed check block"
   block:
-    - name: "{{ role_name }} | main | set precheck target"
+    - name: "{{ role_name }} | main | set check target"
       ansible.builtin.set_fact:
         precheck_target: ocp
     - name: "{{ role_name }} | main | nad"
       ansible.builtin.include_tasks: 
-        file: nad.yml
+        file: "nad.yml"
   when: check_mode == 'seed'
 
-# - name: "{{ role_name }} | main | Execute MTV Blocker Checks"
-#   ansible.builtin.include_tasks: check_blockers.yml
-#   loop: "{{ precheck_target }}"
-#     loop_var: target
+- name: "{{ role_name }} | main | setup summary variable"
+  ansible.builtin.set_fact:
+    precheck_summary: []
+    precheck_target: "{{ ansible_limit }}"
+
+- name: "{{ role_name }} | main | Execute MTV Blocker Checks"
+  ansible.builtin.include_tasks: check_blockers.yml
+  loop: "{{ precheck_target }}"
+  loop_control:
+    loop_var: target
 
 - name: "{{ role_name }} | main | display summary report"
   ansible.builtin.debug:
@@ -66,7 +79,7 @@
             Pre-Flight Migration Summary
       ========================================
       {% for target in precheck_summary %}
-      VM NAME: {{ target.vm_name }} | OVERALL STATUS: {{ target.overall_status }}
+      TARGET NAME: {{ target.vm_name }} | OVERALL STATUS: {{ target.overall_status }}
       ----------------------------------------
       CHECKS EXECUTED:
       {% for check in target.checks %}
