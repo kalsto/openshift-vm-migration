@@ -1,0 +1,8 @@
+---
+
+
+- name: "{{ role_name }} | common | collect ping results"
+  ansible.builtin.ping:
+  delegate_to: "{{ target }}"
+  register: ping_check
+  ignore_errors: true
