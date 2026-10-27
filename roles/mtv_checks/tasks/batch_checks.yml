@@ -4,7 +4,7 @@
 
 - name: "{{ role_name }} | batch_checks | include vmware checks"
   ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}../vars/checks/vmware.yml"
+    file: "{{ playbook_dir }}/../vars/checks/vmware.yml"
 
 - name: "{{ role_name }} | batch_checks | combine checks"
   ansible.builtin.set_fact:
