@@ -27,6 +27,12 @@ network_map: "{{ tt_mtv_network_map | default('tbd') }}"
 storage_map: "{{ tt_mtv_storage_map | default('tbd') }}"
 
 mtv_ocp_short: "tbd"
+allowed_mtv_ocp_short:
+  - "m-ty"
+  - "m-da"
+  - "m-ny"
+  - "m-db"
+  
 ocp_nad_naming_convention: "{{ tt_ocp_nad_naming_convention }}"
 
 # MTV Collection variables
