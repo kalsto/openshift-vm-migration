@@ -1,230 +1,132 @@
-# Deploy Ansible Automation Platform 2.6 on OpenShift with External RDS
+# OpenShift VM migration
 
-This repository provides self-contained Ansible playbooks that automate the end-to-end lifecycle of provisioning an external AWS RDS PostgreSQL database inside the ROSA cluster VPC, deploying and configuring Ansible Automation Platform (AAP) 2.6, and executing OpenShift Virtualization VM migrations.
+Ansible playbooks for an existing ROSA cluster. They cover three jobs:
 
-================================================================================
-What This Automation Does
-================================================================================
+1. Create a PostgreSQL RDS instance in the ROSA cluster VPC, initialize the Ansible Automation Platform (AAP) databases, and store the connection details as OpenShift secrets.
+2. Install AAP on that cluster, either against that RDS instance or against the operator's in-cluster database, and remove the AAP install later.
+3. Move virtual machines from VMware vSphere to OpenShift Virtualization with the Migration Toolkit for Virtualization (MTV).
 
-1. AWS RDS PostgreSQL Provisioning (deploy_aap_rds.yml):
-   - Discovers the ROSA cluster VPC and existing subnets dynamically.
-   - Creates an RDS Subnet Group and Security Group (port 5432).
-   - Provisions a dedicated PostgreSQL 15 instance.
-   - Runs an in-cluster OpenShift Job (rds-init-job) to create the dedicated databases (aap_gateway, aap_controller, aap_hub, aap_eda) and required PostgreSQL extensions (hstore).
-   - Generates rds-gateway-configuration and rds-controller-configuration Kubernetes secrets.
+The RDS and AAP playbooks are the paths you can run today. The VM migration playbooks and roles are still being assembled, so this README describes that work at the layout level and does not give a launch procedure for it.
 
-2. AAP 2.6 Deployment (deploy_aap.yml):
-   - Creates the ansible-automation-platform namespace and OperatorGroup.
-   - Subscribes to the AAP 2.6 operator channel (stable-2.6).
-   - Deploys the unified AnsibleAutomationPlatform Custom Resource bound to external RDS database secrets (preventing in-cluster database pods).
-   - Verifies Platform Gateway health (/api/controller/v2/ping/).
-   - Automatically applies your local manifest.zip subscription license.
+## Layout
 
-3. AAP Teardown (destroy_aap.yml):
-   - Cleans up custom resources, subscriptions, CSVs, and namespaces without blocking on finalizers.
+| Path | What it does |
+| --- | --- |
+| `playbooks/deploy_rds.yml` | RDS in the ROSA VPC, database init Job, database secrets |
+| `playbooks/deploy_aap_w_rds.yml` | AAP 2.7 operator (`stable-2.7`) using the RDS secrets |
+| `playbooks/deploy_aap_local_db.yml` | AAP 2.6 operator (`stable-2.6`) with the in-cluster PostgreSQL |
+| `playbooks/destroy_aap.yml` | Removes the AAP install. Leaves RDS in place |
+| `playbooks/config_aap.yml` | Creates AAP credentials, a project, a vCenter inventory, and a migration job template from `vars/aap_config.yml` |
+| `playbooks/migrate_vms.yml` | MTV migration playbook the job template is pointed at |
+| `playbooks/prechecks.yml`, `playbooks/batch_scan.yml` | Early pre-check entry points |
+| `playbooks/execute_mtv_migration.yml` | Alternate migration sketch. Not wired to the job template |
+| `vars/` | Shared settings, check definitions, and Ansible Vault files |
+| `roles/` | NAD checks, MTV pre-checks, notifications, and a few roles that are still empty |
 
-================================================================================
-Prerequisites
-================================================================================
+## Prerequisites
 
-Ensure the following tools and assets are ready on your workstation:
+On the machine that runs the playbooks:
 
-1. OpenShift CLI (oc): Installed locally.
-2. Ansible Core: Installed locally (ansible-playbook 2.15+).
-3. AWS CLI & Boto3: boto3 and botocore Python packages installed in your environment (pip install boto3 botocore).
-4. Ansible Collections:
-   ansible-galaxy collection install kubernetes.core amazon.aws infra.controller_configuration
-5. Red Hat Subscription Manifest: A valid AAP subscription manifest named manifest.zip placed in the root directory.
+- `oc`
+- `ansible-playbook` 2.15 or newer
+- AWS credentials that can describe the ROSA VPC and create RDS, subnet, and security group resources
+- An OpenShift user that can create namespaces, secrets, jobs, operator subscriptions, and the AAP custom resource. The playbooks log in as `cluster-admin` unless you override `openshift_username`
+- A Red Hat subscription manifest at `manifest.zip` in the repo root, if you want the deploy playbook to apply a license
+- Python packages `boto3` and `botocore` for the AWS modules
 
-================================================================================
-Step-by-Step Deployment Guide
-================================================================================
+Collections used by the RDS and AAP playbooks:
 
-[ 1. Provision RDS & Create Secrets ]
-              │
-              ▼
-[ 2. Deploy AAP 2.6 & Apply License ]
-              │
-              ▼
-[ 3. Launch VM Migrations via AWX / MTV ]
+```bash
+ansible-galaxy collection install -r requirements.yml kubernetes.core
+```
 
---------------------------------------------------------------------------------
-Step 1: Add Subscription Manifest File
---------------------------------------------------------------------------------
+`requirements.yml` installs `amazon.aws`, `ansible.controller`, `awx.awx`, `ansible.utils`, `community.general`, and `community.postgresql`. `kubernetes.core` is imported by the playbooks and is commented out in that file, so install it explicitly. The migration playbooks also import `community.vmware` and `infra.openshift_virtualization_migration`, which are not listed in `requirements.yml`.
 
-Copy your Red Hat Subscription Manifest file into the root of this repository:
+Optional TLS files, picked up automatically when present:
 
-cp /path/to/your/manifest_*.zip ./manifest.zip
+- `certs/internal-ca.crt` becomes secret `aap-custom-ca-secret`
+- `certs/tls.crt` and `certs/tls.key` become secret `aap-route-tls-secret`
 
---------------------------------------------------------------------------------
-Step 2: Provision RDS PostgreSQL & Generate Secrets
---------------------------------------------------------------------------------
+Pass `-e custom_hostname=<fqdn>` to either AAP deploy playbook when the route should use a specific host.
 
-Run deploy_aap_rds.yml to provision the RDS database in the ROSA VPC and initialize database credentials:
+## 1. Create the RDS instance
 
+`deploy_rds.yml` looks up the ROSA VPC by a `Name` tag matching `*rosa*<cluster_identifier>*`, collects its subnets, and creates:
+
+- subnet group `aap-rds-subnet-group`
+- security group `aap-rds-sg`, allowing TCP 5432 from `0.0.0.0/0`
+- a second subnet in another availability zone when the VPC has only one, because the subnet group needs two
+- PostgreSQL 15 instance `aap-postgres-db` (`db.m6g.large`, 50 GB gp3, not publicly accessible, single-AZ)
+- an in-cluster Job, `rds-init-job`, that creates user `aap_user` and databases `aap_gateway`, `aap_controller`, `aap_hub`, and `aap_eda`, plus the `hstore` extension on `aap_hub`
+- secrets `rds-gateway-configuration`, `rds-controller-configuration`, `rds-hub-configuration`, and `rds-eda-configuration` in namespace `ansible-automation-platform`
+
+```bash
 ansible-playbook playbooks/deploy_rds.yml \
-  -e "aws_access_key=<YOUR_AWS_ACCESS_KEY>" \
-  -e "aws_secret_key=<YOUR_AWS_SECRET_KEY>" \
+  -e "aws_access_key=<AWS_ACCESS_KEY>" \
+  -e "aws_secret_key=<AWS_SECRET_KEY>" \
   -e "aws_region=us-east-2" \
-  -e "cluster_identifier=<YOUR_CLUSTER_ID>" \
-  -e "openshift_host=https://api.<cluster-name>.<domain>:443" \
-  -e "openshift_password=<OPENSHIFT_ADMIN_PASSWORD>" \
+  -e "cluster_identifier=<ROSA_CLUSTER_ID>" \
+  -e "openshift_host=https://api.<cluster>.<domain>:443" \
+  -e "openshift_password=<OPENSHIFT_PASSWORD>" \
   -e "db_master_password=<RDS_MASTER_PASSWORD>" \
   -e "db_app_password=<AAP_APP_PASSWORD>"
+```
 
---------------------------------------------------------------------------------
-Step 3: Deploy AAP 2.6
---------------------------------------------------------------------------------
+There is no playbook that deletes the RDS instance, subnet group, security group, or extra subnet.
 
-Once the RDS playbook completes successfully, deploy the AAP operator and instance:
+## 2. Install AAP
 
+Both deploy playbooks create namespace `ansible-automation-platform`, an `OperatorGroup`, a subscription to `ansible-automation-platform-operator` from `redhat-operators`, and an `AnsibleAutomationPlatform` resource named `aap`. Controller runs with 2 replicas. Hub is enabled with `ReadWriteOnce` storage and pod affinity so its pods stay on one node. EDA, Lightspeed, and metrics are disabled. The playbook waits for the admin secret and the route, then polls `/api/controller/v2/ping/`. If `manifest.zip` is present it posts that manifest to the controller config API.
+
+The external-database install uses channel `stable-2.7` and the RDS secrets. Run it after `deploy_rds.yml`:
+
+```bash
 ansible-playbook playbooks/deploy_aap_w_rds.yml \
-  -e "openshift_host=https://api.<cluster-name>.<domain>:443" \
-  -e "openshift_password=<OPENSHIFT_ADMIN_PASSWORD>"
+  -e "openshift_host=https://api.<cluster>.<domain>:443" \
+  -e "openshift_password=<OPENSHIFT_PASSWORD>"
+```
 
-================================================================================
-Monitoring & Accessing AAP
-================================================================================
+The in-cluster database install uses channel `stable-2.6` and does not set a database secret, so the operator creates its own PostgreSQL:
 
-Monitor Pod Rollout:
+```bash
+ansible-playbook playbooks/deploy_aap_local_db.yml \
+  -e "openshift_host=https://api.<cluster>.<domain>:443" \
+  -e "openshift_password=<OPENSHIFT_PASSWORD>"
+```
+
+Watch the rollout with:
+
+```bash
 oc get pods -n ansible-automation-platform -w
+```
 
-Accessing the Web UI:
-When the playbook completes, it displays the web route and administrator password:
+When the playbook finishes it prints the route, the `admin` username, and the generated admin password. You can read those later with:
 
-====================================================
-  AAP 2.6 Deployment & Licensing Complete!           
-====================================================
-  URL:      https://aap-ansible-automation-platform.apps...
-  Username: admin
-  Password: <auto-generated-password>
-  Database: External RDS PostgreSQL
-====================================================
+```bash
+oc get route aap -n ansible-automation-platform -o jsonpath='{"https://"}{.spec.host}{"\n"}'
+oc get secret aap-admin-password -n ansible-automation-platform -o jsonpath='{.data.password}' | base64 -d; echo
+```
 
-Manual Credential Retrieval:
-- Route URL:
-  oc get route aap -n ansible-automation-platform -o jsonpath='{"https://"}{.spec.host}{"\n"}'
+## 3. Remove AAP
 
-- Admin Password:
-  oc get secret aap-admin-password -n ansible-automation-platform -o jsonpath='{.data.password}' | base64 -d; echo
+`destroy_aap.yml` deletes the `AnsibleAutomationPlatform` resource, the operator subscription, the operator group, and the namespace. It does not wait on finalizers, and it does not touch RDS.
 
-================================================================================
-Teardown / Resetting AAP
-================================================================================
-
-To remove the AAP instance and reset the namespace while preserving your RDS PostgreSQL instance:
-
+```bash
 ansible-playbook playbooks/destroy_aap.yml \
-  -e "openshift_host=https://api.<cluster-name>.<domain>:443" \
-  -e "openshift_password=<OPENSHIFT_ADMIN_PASSWORD>"
+  -e "openshift_host=https://api.<cluster>.<domain>:443" \
+  -e "openshift_password=<OPENSHIFT_PASSWORD>"
+```
 
-================================================================================
-OpenShift Virtualization VM Migration Automation
-================================================================================
+## 4. Seed AAP objects
 
-Automated migration of virtual machines from VMware vSphere to OpenShift Virtualization using Ansible Automation Platform (AAP) / AWX and the Red Hat Migration Toolkit for Virtualization (MTV) collection (infra.openshift_virtualization_migration).
+`playbooks/config_aap.yml` logs in to the cluster, reads the AAP admin secret and route, and uses `ansible.controller` to apply `vars/aap_config.yml`. That file defines an Automation Hub credential, a Galaxy credential, vCenter credentials, an OpenShift bearer-token credential, a Git project (`scm_branch: main`), a VMware inventory source, and job template `01 - Execute OpenShift VM Migration` (`playbooks/migrate_vms.yml`).
 
---------------------------------------------------------------------------------
-1. Prerequisites and Required AWX Credentials
---------------------------------------------------------------------------------
+Connection values come from `vars/vault.yml`. Decrypt that vault with the local vault password file before running the playbook.
 
-This automation relies on AWX / AAP Credentials to inject connection details securely at runtime as environment variables and extra variables. Zero credentials or API tokens are stored in Git.
+## VM migration
 
-Assign the following credentials under the Credentials section of your Job Template:
+The intended run is an AAP job using `playbooks/migrate_vms.yml`, limited to specific VM names from a vCenter inventory. That playbook selects a target OpenShift cluster, checks Changed Block Tracking when the migration is warm, powers source VMs off when it is cold, ensures the target namespace and MTV `NetworkMap` / `StorageMap` resources, includes `infra.openshift_virtualization_migration.mtv_management` and `mtv_migrate`, and on failure powers the source VMs back on and deletes the target `VirtualMachine` and matching PVCs.
 
-- mtv-token (OpenShift API Token - Custom Credential):
-  Injects environment variables K8S_AUTH_HOST and K8S_AUTH_API_KEY as well as extra_vars openshift_server and openshift_api_key.
+It is not ready to treat as a documented procedure. The playbook still has open TODOs around cluster variable loading, `vars/migration_config.yml` is not included by it, and the cluster files it tries to load (`mda.yml`, `mny.yml`, `mty.yml`) are not the files under `vars/cluster_vars/`. `playbooks/execute_mtv_migration.yml` is a separate sketch with placeholder cluster values. Pre-checks live in `checks.md`, `playbooks/prechecks.yml`, `playbooks/batch_scan.yml`, and `roles/mtv_checks`, and several of those tasks are unfinished.
 
-- VMware Credentials (VMware vCenter Credentials):
-  Injects VMWARE_USER and VMWARE_PASSWORD into the execution environment.
-
---------------------------------------------------------------------------------
-2. Custom Credential Type Configuration (mtv-token)
---------------------------------------------------------------------------------
-
-Create this Custom Credential Type in AWX / AAP under Administration -> Credential Types:
-
-Name: OpenShift Bearer Token
-
-Input Configuration (YAML):
----------------------------
-fields:
-  - id: openshift_server
-    type: string
-    label: OpenShift API Server URL
-  - id: openshift_api_key
-    type: string
-    label: OpenShift API Bearer Token
-    secret: true
-required:
-  - openshift_server
-  - openshift_api_key
-
-Injector Configuration (YAML):
-------------------------------
-env:
-  K8S_AUTH_HOST: '{{ openshift_server }}'
-  K8S_AUTH_API_KEY: '{{ openshift_api_key }}'
-extra_vars:
-  openshift_server: '{{ openshift_server }}'
-  openshift_api_key: '{{ openshift_api_key }}'
-
---------------------------------------------------------------------------------
-3. Extra Variables Reference
---------------------------------------------------------------------------------
-
-Pass these extra variables directly into your AWX Job Template Extra Variables field at launch time:
-
-vsphere_url: https://vcenter.apps.net/sdk
-target_namespace: local-cluster
-vsphere_port_group: segment-migrating-to-ocpvirt
-vsphere_datastore: workloadshare
-target_storage_class: ocs-external-storagecluster-ceph-rbd
-provider: vsphere
-mtv_management_source_target: vmware
-mtv_management_destination_target: host
-source_vms:
-  - name: database-user1
-  - name: winweb01-user1
-  - name: winweb02-user1
-  - name: haproxy-user1
-mtv_migrate_migration_request:
-  plan_name: vm-migration-plan
-  mtv_namespace: openshift-mtv
-  target_namespace: local-cluster
-  source: vmware
-  destination: host
-  network_map: vmware-host
-  storage_map: vmware-host
-  start_migration: true
-  verify_plans_ready: true
-  verify_migrations_complete: true
-  vms:
-    - name: database-user1
-    - name: winweb01-user1
-    - name: winweb02-user1
-    - name: haproxy-user1
-
---------------------------------------------------------------------------------
-4. Extra Variable Descriptions
---------------------------------------------------------------------------------
-
-- vsphere_url (String): SDK endpoint URL for the source vCenter server.
-- target_namespace (String): Target OpenShift namespace/project where VMs will be provisioned.
-- vsphere_port_group (String): Source VMware Port Group / Network Segment name.
-- vsphere_datastore (String): Source VMware Datastore containing VM disk images.
-- target_storage_class (String): Target OpenShift StorageClass to provision Persistent Volume Claims.
-- provider (String): Source provider type flag (vsphere).
-- mtv_management_source_target (String): Name of VMware provider registered in MTV (vmware).
-- mtv_management_destination_target (String): Name of OpenShift destination provider registered in MTV (host).
-- source_vms (List): List of VM dictionary objects containing exact display names in vCenter.
-- mtv_migrate_migration_request (Dict): Schema object passed to mtv_migrate role to build, validate, and execute the migration plan.
-
---------------------------------------------------------------------------------
-5. Execution Workflow
---------------------------------------------------------------------------------
-
-1. Push playbooks and configuration files to your Git repository.
-2. In AAP / AWX, navigate to Resources -> Projects -> Click Sync on the project repository.
-3. Open the Job Template, attach the mtv-token and VMware Credentials, and paste the Extra Variables block.
-4. Click Launch.
+`roles/qemu-guest` and `roles/mtv_forkliftcontroller` have no tasks yet. `roles/ocp_nad` checks that expected NetworkAttachmentDefinitions exist. `roles/notify` can send a Slack message and is only called from `playbooks/test_notify.yml`.
