@@ -1,20 +1,48 @@
 ---
 # When you run this playbook, targets is the name of the hosts
 - name: "batch scan for multiple vm's prior to attempting to migrate"
-  hosts: "{{ targets | default('localhost') }}"
+  hosts: "all"
   gather_facts: false
 
   vars_files:
     - "../vars/all.yml"
     - "../vars/all_vault.yml" 
 
+  pre_tasks:
+    - name: Add host from the limit
+      ansible.builtin.assert:
+        that:
+          - ansible_limit is defined
+          - ansible_limit | length > 0
+      fail_msg: "You must provide a limit, or this job will not run"
+
+    # - name: Build source_vms list from native AAP limit
+    #   ansible.builtin.set_fact:
+    #     source_vms: "{{ raw_vms_list | from_yaml }}"
+    #   vars:
+    #     raw_vms_list: |
+    #       {% for h in ansible_play_batch if h not in ['localhost', '127.0.0.1'] %}
+    #       - name: "{{ h }}"
+    #       {% endfor %}
+
+    # - name: Validate that target VMs were resolved
+    #   ansible.builtin.assert:
+    #     that:
+    #       - source_vms is defined
+    #       - source_vms | length > 0
+    #       - source_vms in ansible_limit
+    #     fail_msg: "No valid VMs matched the limit '{{ ansible_limit }}'! Check VM name spelling or inventory sync."
+
   tasks:
     - name: "Prechecks | debug"
       ansible.builtin.debug:
         msg:
-          "mtv_ocp_short is {{ mtv_ocp_short | default('OCP cluster not specified') }}"
+          - "mtv_ocp_short is {{ mtv_ocp_short | default('OCP cluster not specified') }}"
+          - "ansible_play_batch is: {{ ansible_play_batch }}"
       when:
         - mtv_tt_debug | default(false)
+
+
 
     - name: "Prechecks | include_role"
       ansible.builtin.include_role:
