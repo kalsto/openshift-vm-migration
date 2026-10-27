@@ -7,7 +7,7 @@
 #   ansible.builtin.set_fact:
 #     active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
 
-- name: "{{ role_name }} | check_blockers | run initial fact gathering"
+- name: "{{ role_name }} | check_blockers | run fact gathering"
   ansible.builtin.include_tasks:
     file: "{{ check_mode }}_checks.yml"
 
