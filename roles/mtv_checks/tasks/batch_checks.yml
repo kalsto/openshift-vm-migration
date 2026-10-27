@@ -1,13 +1,4 @@
 # In this file, we're going to query the vmware host to collect the vm's to run tests against
-
-- name: "{{ role_name }} | batch_checks | include vmware checks"
-  ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../vars/checks/vmware.yml"
-
-- name: "{{ role_name }} | batch_checks | combine checks"
-  ansible.builtin.set_fact:
-    active_preflight_checks: "{{ common_checks | combine(vmware_checks, recursive=True) }}"
-
 - name: "{{ role_name }} | batch_checks | ocp assert required variables"
   ansible.builtin.assert:
     that:
@@ -17,6 +8,16 @@
 - name: "{{ role_name }} | batch_checks | collect vmware details"
   ansible.builtin.include_tasks:
     file: "vmware.yml"
+
+- name: "{{ role_name }} | batch_checks | include vmware checks"
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../vars/checks/vmware.yml"
+
+- name: "{{ role_name }} | batch_checks | combine checks"
+  ansible.builtin.set_fact:
+    active_preflight_checks: "{{ common_checks | combine(vmware_checks, recursive=True) }}"
+
+
 
 
 # Removing this for now, as we have to have the inventory before we run the job
