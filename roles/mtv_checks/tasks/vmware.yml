@@ -5,6 +5,6 @@
     password: "{{ vsphere_password }}"
     validate_certs: false
     datacenter: "Datacenter"
-    name: "{{ vm }}"
+    name: "{{ target }}"
   register: vm_facts
 

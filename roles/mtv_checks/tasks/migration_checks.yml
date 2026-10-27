@@ -20,7 +20,7 @@
   ansible.builtin.include_tasks: 
     file: temp_local.yml
     
-- name: "{{ role_name }} | main | vmware"
+- name: "{{ role_name }} | main | collect vmware details"
   ansible.builtin.include_tasks: 
     file: vmware.yml
 

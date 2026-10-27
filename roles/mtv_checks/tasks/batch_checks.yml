@@ -14,6 +14,11 @@
       - vsphere_host is defined
     fail_msg: "For batch checks, vsphere_host is a required variable"
 
+- name: "{{ role_name }} | batch_checks | collect vmware details"
+  ansible.builtin.include_tasks:
+    file: "vmware.yml"
+
+
 # Removing this for now, as we have to have the inventory before we run the job
 # - name: "{{ role_name }} | batch_checks | make sure vmware inventory exists"
 #   ansible.controller.inventory_info:
