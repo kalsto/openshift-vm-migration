@@ -26,7 +26,7 @@
 
 - name: "{{ role_name }} | main | include cluster variables via mtv_ocp_short variable"
   ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../vars/cluster_vars/{{ mtv_ocp_short }}.yml"
+    file: "{{ playbook_dir }}/../vars/cluster_vars/{{ mtv_ocp_short }}_vault.yml"
 
 - name: "{{ role_name }} | main | include common checks"
   ansible.builtin.include_vars:
