@@ -14,7 +14,7 @@
   ansible.builtin.assert:
     that:
       - vsphere_host is defined
-  fail_msg: "For batch checks, vsphere_host is a required variable"
+    fail_msg: "For batch checks, vsphere_host is a required variable"
 
 - name: "{{ role_name }} | batch_checks | make sure vmware inventory exists"
   ansible.controller.inventory_info:
