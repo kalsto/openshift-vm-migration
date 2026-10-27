@@ -5,4 +5,4 @@ common_checks:
   - name: "Ping Test"
     level: "warn_fail"
     check: "{{ ping_check.rc | default(1) == 0 or (ping_check.ping | default('')) == 'pong' }}"
-    fail_msg: "AAP can't reach {{ ansible_inventory }} - this shouldn't happen"
+    fail_msg: "AAP can't reach {{ target | default('unknown host') }} - this shouldn't happen"
