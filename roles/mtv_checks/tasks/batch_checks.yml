@@ -4,7 +4,7 @@
 - name: "{{ role_name }} | batch_checks | initial debug"
   ansible.builtin.debug:
     msg:
-      - "target is {{ target }}"
+      - "target is {{ target | default('no target defined') }}"
 
 - name: "{{ role_name }} | batch_checks | ocp assert required variables"
   ansible.builtin.assert:

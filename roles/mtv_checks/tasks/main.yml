@@ -44,12 +44,12 @@
 
   when: check_mode == 'migration'
 
-- name: "{{ role_name }} | main | batch check block"
-  block:
-    - name: "{{ role_name }} main | prepare batch checks"
-      ansible.builtin.include_tasks:
-        file: "batch_checks.yml"
-  when: check_mode == 'batch'
+# - name: "{{ role_name }} | main | batch check block"
+#   block:
+#     - name: "{{ role_name }} main | prepare batch checks"
+#       ansible.builtin.include_tasks:
+#         file: "batch_checks.yml"
+#   when: check_mode == 'batch'
 
 - name: "{{ role_name }} | main | ocp seed check block"
   block:
