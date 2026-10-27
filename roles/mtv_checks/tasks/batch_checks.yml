@@ -1,4 +1,11 @@
 # In this file, we're going to query the vmware host to collect the vm's to run tests against
+
+# Confirm we have what we expect to have
+- name: "{{ role_name }} | batch_checks | initial debug"
+  ansible.builtin.debug:
+    msg:
+      - "target is {{ target }}"
+
 - name: "{{ role_name }} | batch_checks | ocp assert required variables"
   ansible.builtin.assert:
     that:

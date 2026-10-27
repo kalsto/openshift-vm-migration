@@ -61,10 +61,10 @@
         file: "nad.yml"
   when: check_mode == 'seed'
 
-- name: "{{ role_name }} | main | setup summary variable"
+- name: "{{ role_name }} | main | setup summary variable and target"
   ansible.builtin.set_fact:
     precheck_summary: []
-    precheck_target: "{{ ansible_limit }}"
+    precheck_target: "{{ ansible_batch_play }}"
 
 - name: "{{ role_name }} | main | Execute MTV Blocker Checks"
   ansible.builtin.include_tasks: check_blockers.yml
