@@ -15,3 +15,7 @@ vmware_checks:
     check: "{{ vm_facts.results.instance.advanced_settings.ctkEnabled | default('FALSE') | bool }}"
     fail_msg: "CBT is not enabled. This is necessary for warm MTV migrations"
     success_msg: "CBT is enabled"
+  - name: "vmware inventory"
+    level: "warn_fail"
+    check: "{{ vsphere_facts.inventories | default([]) | length > 0 }}"
+    fail_msg: "AAP Inventory missing - It must be created before you do a batch scan"

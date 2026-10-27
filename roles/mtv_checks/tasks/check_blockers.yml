@@ -7,14 +7,14 @@
   ansible.builtin.set_fact:
     active_preflight_checks: "{{ default_preflight_checks | combine(custom_preflight_checks, recursive=True) )}" 
 
-- name: "{{ role_name }} | initialize severity trackers"
+- name: "{{ role_name }} | check_blockers |check_blockers |initialize severity trackers"
   ansible.builtin.set_fact:
     preflight_warnings: []
     preflight_warn_failures: []
     preflight_hard_failures: []
 
 
-- name: "{{ role_name }} | gather details
+- name: "{{ role_name }} | check_blockers |gather details
 
 # Run the checks - this must be done once the vm_facts are gathered
 - name: "{{ role_name }} | check_blockers | Evaluate checks"
@@ -34,7 +34,7 @@
       - "Failure message: {{ preflight_failures }}"
   when: tt_debug | default(False) | bool
 
-- name: Fail execution if blocker condition exists
+- name: "{{ role_name }} | check_blockers | Fail execution if blocker condition exists"
   ansible.builtin.fail:
     msg: "MTV Blocker detected on VM {{ item.vm_name }}: active snapshots or mounted CD-ROMs found."
   when: item.has_snapshots or item.has_cdrom_mounted

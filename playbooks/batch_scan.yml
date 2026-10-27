@@ -4,12 +4,6 @@
   hosts: "{{ targets | default('localhost') }}"
   gather_facts: false
 
-  # module_defaults:
-  #   group/k8s:
-  #     host: "{{ openshift_server }}"
-  #     api_key: "{{ openshift_api_key }}"
-  #     validate_certs: false
-
   vars_files:
     - "../vars/all.yml"
     - "../vars/all_vault.yml" 

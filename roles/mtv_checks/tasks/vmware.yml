@@ -1,4 +1,4 @@
-- name: "{{ role_name }} | check_blockers | Gather VM facts from vsphere"
+- name: "{{ role_name }} | vmware | Gather VM facts from vsphere"
   community.vmware.vmware_guest_info:
     hostname: "{{ vsphere_host }}"
     username: "{{ vsphere_username }}"

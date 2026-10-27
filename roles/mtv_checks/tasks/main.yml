@@ -12,9 +12,13 @@
       - mtv_ocp_short is defined and mtv_ocp_short in allowed_mtv_ocp_short
     fail_msg: "Please check mandatory inputs. check_mode and mtv_ocp_short are required"
 
-- name: "{{ role_name }} | main | include common checks"
-  
+- name: "{{ role_name }} | main | include cluster variables via ocp_short variable"
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../vars/cluster_vars/{{ ocp_short }}.yml"
 
+- name: "{{ role_name }} | main | include common checks"
+  ansible.builtin.include_tasks:
+    file: "{{ playbook_dir }}/../vars/checks/common.yml"
 
 - name: "{{ role_name }} | main | setup summary variable"
   ansible.builtin.set_fact:
@@ -24,17 +28,20 @@
   block:
     - name: "{{ role_name }} | main | set precheck target"
       ansible.builtin.set_fact: 
-        precheck_target: "{{ target_vms }}"
+        precheck_target: "{{ target }}"
     - name: "{{ role_name }} | main | temporary local user account"
-      ansible.builtin.include_tasks: temp_local.yml
+      ansible.builtin.include_tasks: 
+        file: temp_local.yml
     - name: "{{ role_name }} | main | vmware"
-      ansible.builtin.include_tasks: vmware.yml
+      ansible.builtin.include_tasks: 
+        file: vmware.yml
   when: check_mode == 'migration'
 
 - name: "{{ role_name }} | main | batch precheck block"
   block:
     - name: "{{ role_name }} main | run batch checks"
-      ansible.builtin.include_tasks: batch_checks.yml
+      ansible.builtin.include_tasks:
+        file: batch_checks.yml
   when: check_mode == 'batch'
 
 - name: "{{ role_name }} | main | ocp precheck block"
@@ -43,13 +50,14 @@
       ansible.builtin.set_fact:
         precheck_target: ocp
     - name: "{{ role_name }} | main | nad"
-      ansible.builtin.include_tasks: nad.yml
+      ansible.builtin.include_tasks: 
+        file: nad.yml
   when: check_mode == 'seed'
 
-- name: "{{ role_name }} | main | Execute MTV Blocker Checks"
-  ansible.builtin.include_tasks: check_blockers.yml
-  loop: "{{ precheck_target }}"
-    loop_var: target
+# - name: "{{ role_name }} | main | Execute MTV Blocker Checks"
+#   ansible.builtin.include_tasks: check_blockers.yml
+#   loop: "{{ precheck_target }}"
+#     loop_var: target
 
 - name: "{{ role_name }} | main | display summary report"
   ansible.builtin.debug:
