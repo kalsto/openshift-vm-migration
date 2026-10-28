@@ -4,10 +4,10 @@
       - "vsphere_host: {{ vsphere_host }}"
       - "target: {{ target }}"
 
-      
+
 - name: "{{ role_name }} | vmware | Gather VM facts from vsphere"
   vmware.vmware.vm_info:
-    hostname: "{{ vsphere_host }}"
+    hostname: "https://{{ vsphere_host }}"
     username: "{{ vsphere_username }}"
     password: "{{ vsphere_password }}"
     validate_certs: false
