@@ -8,4 +8,4 @@ collections:
   - name: ansible.controller
   - name: awx.awx
   - name: community.general
-  - name: community.vmware
+  - name: vmware.vmware

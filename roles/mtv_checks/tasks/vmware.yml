@@ -1,10 +1,10 @@
 - name: "{{ role_name }} | vmware | Gather VM facts from vsphere"
-  community.vmware.vmware_guest_info:
+  vmware.vmware.vm_info:
     hostname: "{{ vsphere_host }}"
     username: "{{ vsphere_username }}"
     password: "{{ vsphere_password }}"
     validate_certs: false
-    datacenter: "Datacenter"
+    datacenter: "{{ mtv_vsphere_datacenter | default(omit) }}"
     name: "{{ target }}"
   register: vm_facts
 
