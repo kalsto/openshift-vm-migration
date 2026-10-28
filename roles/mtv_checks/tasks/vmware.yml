@@ -13,5 +13,6 @@
     validate_certs: false
     datacenter: "{{ mtv_vsphere_datacenter | default(omit) }}"
     guest_name: "{{ target }}"
+  delegate_to: localhost
   register: vm_facts
 
