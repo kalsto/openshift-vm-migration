@@ -66,6 +66,13 @@
     precheck_summary: []
     precheck_target: "{{ ansible_play_batch }}"
 
+- name: "{{ role_name }} | main | Debug before Execute MTV Blocker Checks"
+  ansible.builtin.debug:
+    msg:
+      - "vsphere_host: {{ vsphere_host }}"
+      - "precheck_target: {{ precheck_target }}"
+      - "mtv_ocp_short: {{ mtv_ocp_short }}"
+
 - name: "{{ role_name }} | main | Execute MTV Blocker Checks"
   ansible.builtin.include_tasks: check_blockers.yml
   loop: "{{ precheck_target }}"

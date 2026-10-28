@@ -21,6 +21,7 @@ openshift_user: "{{ tt_openshift_username }}"
 openshift_password: "{{ tt_openshift_password }}"
 openshift_validate_certs: false
 mtv_source_provider: "{{ tt_mtv_source_provider }}"
+mtv_vsphere_datacenter: "{{ tt_mtv_vsphere_datacenter }}"
 
 openshift_nad: "{{ tt_openshift_nad | default('tbd') }}"
 network_map: "{{ tt_mtv_network_map | default('tbd') }}"
