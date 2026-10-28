@@ -12,6 +12,6 @@
     password: "{{ vsphere_password }}"
     validate_certs: false
     datacenter: "{{ mtv_vsphere_datacenter | default(omit) }}"
-    name: "{{ target }}"
+    guest_name: "{{ target }}"
   register: vm_facts
 
