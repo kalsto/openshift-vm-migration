@@ -7,7 +7,7 @@
 
 - name: "{{ role_name }} | vmware | Gather VM facts from vsphere"
   vmware.vmware.vm_info:
-    hostname: "https://{{ vsphere_host }}"
+    hostname: "{{ vsphere_host }}"
     username: "{{ vsphere_username }}"
     password: "{{ vsphere_password }}"
     validate_certs: false
