@@ -1,3 +1,10 @@
+- name: "{{ role_name }} | vmware | Debug before Gather VM facts from vsphere"
+  ansible.builtin.debug:
+    msg:
+      - "vsphere_host: {{ vsphere_host }}"
+      - "target: {{ target }}"
+
+      
 - name: "{{ role_name }} | vmware | Gather VM facts from vsphere"
   vmware.vmware.vm_info:
     hostname: "{{ vsphere_host }}"
