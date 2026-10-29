@@ -21,4 +21,4 @@
   ansible.builtin.debug:
     msg:
       - "vm_facts: {{ vm_facts | default('Facts not available') }}"
-  when: tt_debug | default(False) | bool
+  when: mtv_tt_debug | default(False) | bool
