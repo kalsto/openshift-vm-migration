@@ -34,6 +34,9 @@ allowed_mtv_ocp_short:
   - "m-ny"
   - "m-db"
   
+valid_power_states:
+  - poweredOn
+  
 ocp_nad_naming_convention: "{{ tt_ocp_nad_naming_convention }}"
 
 # MTV Collection variables

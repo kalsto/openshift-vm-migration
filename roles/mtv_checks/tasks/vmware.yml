@@ -3,6 +3,7 @@
     msg:
       - "vsphere_host: {{ vsphere_host }}"
       - "target: {{ target }}"
+  when: tt_debug | default(False) | bool
 
 
 - name: "{{ role_name }} | vmware | Gather VM facts from vsphere"
@@ -16,3 +17,8 @@
   delegate_to: localhost
   register: vm_facts
 
+- name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
+  ansible.builtin.debug:
+    msg:
+      - "vm_facts: {{ vm_facts | default('Facts not available') }}"
+  when: tt_debug | default(False) | bool

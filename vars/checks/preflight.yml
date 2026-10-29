@@ -1,7 +1,7 @@
 ---
 min_os_version: 7
-valid_power_states:
-  - powered_on
+
+
 default_preflight_checks:
   - name: "os_version"
     check: "{{ ansible_distribution_major_version | int >= min_os_version }}"
