@@ -1,7 +1,4 @@
 ---
-- name: "{{ role_name }} | slack | load the vault"
-  ansible.builtin.include_vars:
-    file: ../vars/slack_vault.yml
 - name: "{{ role_name }} | slack | send slack notification"
   community.general.slack:
     token: "{{ notify_slack_webhook_url }}"

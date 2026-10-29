@@ -27,6 +27,9 @@ openshift_nad: "{{ tt_openshift_nad | default('tbd') }}"
 network_map: "{{ tt_mtv_network_map | default('tbd') }}"
 storage_map: "{{ tt_mtv_storage_map | default('tbd') }}"
 
+#notify_slack_webhook_url: "{{ tt_notify_slack_webhook_url }}"
+
+
 mtv_ocp_short: "tbd"
 allowed_mtv_ocp_short:
   - "m-ty"
