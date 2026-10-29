@@ -18,9 +18,13 @@
   register: vm_facts
 
 - name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
+  ansible.builtin.set_fact:
+    vm_facts: vm_facts.guest[0]
+
+- name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
   ansible.builtin.debug:
     msg:
-      - "vm_facts: {{ vm_facts.guests[0] | default('Facts not available') }}"
+      - "vm_facts: {{ vm_facts | default('Facts not available') }}"
       - "valid_power_states: {{ valid_power_states | default('not available') }}"
       - "vm_power_state: {{ vm_facts.guests.hw_power_status | default('not available') }}"
       - "vm_facts.guests.advanced_settings: {{ vm_facts.guests.advanced_settings | default('not available') }}"

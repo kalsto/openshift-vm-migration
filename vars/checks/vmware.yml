@@ -7,9 +7,9 @@
 vmware_checks:
   - name: "vm power state"
     level: "warning"
-    check: "{{ vm_facts.guests.hw_power_status in valid_power_states }}"
-    fail_msg: "VM IN Invalid State - must be one of {{ valid_power_states | join(', ') }}. VM Power state is currently {{ vm_facts.guests.hw_power_status }}"
-    success_msg: "VM is in state {{ vm_facts.guests.hw_power_status }}"
+    check: "{{ vm_facts.hw_power_status in valid_power_states }}"
+    fail_msg: "VM IN Invalid State - must be one of {{ valid_power_states | join(', ') }}. VM Power state is currently {{ vm_facts.hw_power_status }}"
+    success_msg: "VM is in state {{ vm_facts.hw_power_status }}"
   # - name: "cbt enabled"
   #   level: "warn_fail"
   #   check: "{{ vm_facts.guests.advanced_settings.ctkEnabled | default('FALSE') | bool }}"
