@@ -21,8 +21,8 @@
   ansible.builtin.debug:
     msg:
       - "vm_facts: {{ vm_facts.guests | default('Facts not available') }}"
-      - "valid_power_states: {{ valid_power_states }}"
-      - "vm_power_state: {{ vm_facts.guests.hw_power_status }}"
-      - "vm_facts.guests.advanced_settings: {{ vm_facts.guests.advanced_settings }}"
-      
+      - "valid_power_states: {{ valid_power_states | default('not available') }}"
+      - "vm_power_state: {{ vm_facts.guests.hw_power_status | default('not available') }}"
+      - "vm_facts.guests.advanced_settings: {{ vm_facts.guests.advanced_settings | default('not available') }}"
+
   when: mtv_tt_debug | default(False) | bool
