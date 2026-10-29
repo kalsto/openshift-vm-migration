@@ -20,5 +20,5 @@
 - name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
   ansible.builtin.debug:
     msg:
-      - "vm_facts: {{ vm_facts | default('Facts not available') }}"
+      - "vm_facts: {{ vm_facts.guests | default('Facts not available') }}"
   when: mtv_tt_debug | default(False) | bool
