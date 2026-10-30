@@ -19,7 +19,7 @@
 
 - name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
   ansible.builtin.set_fact:
-    vm_facts: "{{ vm_facts.guest[0] | default('none found') }}"
+    vm_facts: "{{ vm_facts.guests[0] | default('none found') }}"
 
 - name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
   ansible.builtin.debug:
