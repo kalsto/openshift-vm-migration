@@ -1,0 +1,25 @@
+---
+# ==============================================================================
+# Target Migration OpenShift Cluster (Template Spoke Cluster)
+# ==============================================================================
+# These should be fairly self explanatory
+tt_openshift_server: "https://<ip or fqdn of the server>:6443"
+tt_openshift_token: "<long token from whichever account you're using>"
+tt_openshift_username: "< kubeadmin or other >"
+# This can probably be removed, as the token should provide the access to OCP
+tt_openshift_password: "< password >"
+
+# You may have to use the IP address for the vcenter - had some issues with that previously
+tt_vsphere_host: "hostname.fqdn.com"
+#tt_vsphere_host: "1.2.3.4"
+# The case-sensitive Datacenter that exists in the vsphere instance for the cluster you're connecting to
+tt_mtv_vsphere_datacenter: "vDC"
+
+###### For prechecks - this is different from the server above - this is the specific console url ######
+tt_openshift_console_url: "https://console-openshift-console.apps.clusterid.domain.com"
+
+# Used for the standard naming convention of nad's, network maps, and anything else
+tt_mtv_ocp_short: "dc"
+
+# Name check the object in ocp - should match the vsphere_host if you're using the fqdn for that
+tt_mtv_source_provider: "hostname.fqdn.com"

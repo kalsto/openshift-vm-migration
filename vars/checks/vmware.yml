@@ -5,11 +5,6 @@
 # Check for pre-existing snapshots
 # Check for whether the system has hot-add cpu/memory
 vmware_checks:
-  - name: "vm power state"
-    level: "warning"
-    check: "{{ vm_facts.hw_power_status in valid_power_states }}"
-    fail_msg: "VM IN Invalid State - must be one of {{ valid_power_states | join(', ') }}. VM Power state is currently {{ vm_facts.hw_power_status }}"
-    success_msg: "VM is in state {{ vm_facts.hw_power_status }}"
   # - name: "cbt enabled"
   #   level: "warn_fail"
   #   check: "{{ vm_facts.guests.advanced_settings.ctkEnabled | default('FALSE') | bool }}"
@@ -19,3 +14,48 @@ vmware_checks:
   #   level: "warn_fail"
   #   check: "{{ vsphere_facts.inventories | default([]) | length > 0 }}"
   #   fail_msg: "AAP Inventory missing - It must be created before you do a batch scan"
+
+  - name: "vm power state"
+    level: "warn_fail"
+    check: "{{ vm_power_state in valid_power_states }}"
+    fail_msg: "VM IN Invalid State - must be one of {{ valid_power_states | join(', ') }}. VM Power state is currently {{ vm_power_state }}"
+    success_msg: "VM is in state {{ vm_power_state }}"
+
+  - name: Assemble pre-flight check matrix
+    ansible.builtin.set_fact:
+      preflight_checks:
+        - name: "check_no_snapshots"
+          passed: "{{ vm_has_no_snapshots | bool }}"
+          level: "hard_fail"
+          success_msg: "OK: No active snapshots found on '{{ inventory_hostname }}'."
+          fail_msg: "FAIL: Snapshots detected on '{{ inventory_hostname }}'. Consolidate/delete snapshots before migrating."
+
+        - name: "check_cbt_enabled"
+          passed: "{{ vm_cbt_enabled | bool }}"
+          level: "warning"
+          success_msg: "OK: CBT is ENABLED on '{{ inventory_hostname }}'."
+          fail_msg: "WARN: CBT is DISABLED on '{{ inventory_hostname }}' (Warm migration delta synchronization unavailable)."
+
+        - name: "check_no_cdrom_mounted"
+          passed: "{{ vm_no_cdrom_mounted | bool }}"
+          level: "hard_fail"
+          success_msg: "OK: No connected ISOs or virtual media on '{{ inventory_hostname }}'."
+          fail_msg: "FAIL: Mounted CD-ROM or ISO image detected on '{{ inventory_hostname }}' ({{ mounted_cdroms | length }} found). Disconnect media before migrating."
+
+        - name: "check_vmware_cpu_hotadd"
+          passed: "{{ vm_cpu_hotadd_enabled | bool }}"
+          level: "warning"
+          success_msg: "OK: CPU hot-add is ENABLED on '{{ inventory_hostname }}'."
+          fail_msg: "WARN: CPU hot-add is DISABLED on '{{ inventory_hostname }}' (Hot-plugging vCPUs requires power-off)."
+
+        - name: "check_vmware_memory_hotadd"
+          passed: "{{ vm_mem_hotadd_enabled | bool }}"
+          level: "warning"
+          success_msg: "OK: Memory hot-add is ENABLED on '{{ inventory_hostname }}'."
+          fail_msg: "WARN: Memory hot-add is DISABLED on '{{ inventory_hostname }}' (Hot-plugging RAM requires guest reboot)."
+
+        - name: "check_vmware_tools_running"
+          passed: "{{ vm_tools_running | bool }}"
+          level: "warning"
+          success_msg: "OK: VMware Tools is actively RUNNING on '{{ inventory_hostname }}'."
+          fail_msg: "WARN: VMware Tools is NOT running on '{{ inventory_hostname }}' (Graceful OS shutdown might fail)."

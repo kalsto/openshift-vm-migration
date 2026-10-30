@@ -1,8 +1,8 @@
 - name: "{{ role_name }} | vmware | Debug before Gather VM facts from vsphere"
   ansible.builtin.debug:
     msg:
-      - "vsphere_host: {{ vsphere_host }}"
-      - "target: {{ target }}"
+    - "vsphere_host: {{ vsphere_host }}"
+    - "target: {{ target }}"
   when: tt_debug | default(False) | bool
 
 
@@ -14,19 +14,65 @@
     validate_certs: false
     datacenter: "{{ mtv_vsphere_datacenter | default(omit) }}"
     guest_name: "{{ target }}"
+    properties:
+      - "config.cpuHotAddEnabled"
+      - "config.memoryHotAddEnabled"
+      - "runtime.powerState"
+      - "guest.toolsRunningStatus"
+      - "snapshot"
+      - "config.hardware.device"
+      - "config.changeTrackingEnabled"
+
   delegate_to: localhost
   register: vm_facts
 
+- name: "{{ role_name }} | vmware | Normalize some of the results from data collection"
+  ansible.builtin.set_fact:
+  current_vm: "{{ vm_facts.vms[0] }}"
+  current_vm_devices: "{{ current_vm.vms[0].config.hardware.device | default([]) }}"
+
+
+- name: "{{ role_name }} | vmware | Normalize cdrom attributes"
+  ansible.builtin.set_fact:
+    mounted_cdroms: >-
+      {{
+        (current_vm_devices
+          | selectattr('connectable', 'defined')
+          | selectattr('backing.fileName', 'defined')
+          | rejectattr('backing.fileName', 'equalto', '')
+          | list
+        )
+        +
+        (current_vm_devices
+          | selectattr('connectable.connected', 'defined')
+          | selectattr('connectable.connected', 'equalto', true)
+          | selectattr('backing.fileName', 'defined')
+          | list
+        )
+        | unique
+      }}
+
+- name: "{{ role_name }} | vmware | Normalize vm operational information"
+  ansible.builtin.set_fact:
+    vm_power_state: "{{ current_vm.runtime.powerState | default('unknown') }}"
+    vm_has_no_snapshots: "{{ current_vm.snapshot is none or current_vm.snapshot | default(none) == none }}"
+    vm_cbt_enabled: "{{ (current_vm.config.changeTrackingEnabled | default(false)) | bool }}"
+    vm_cpu_hotadd_enabled: "{{ (current_vm.config.cpuHotAddEnabled | default(false)) | bool }}"
+    vm_mem_hotadd_enabled: "{{ (current_vm.config.memoryHotAddEnabled | default(false)) | bool }}"
+    vm_tools_running: "{{ (current_vm.guest.toolsRunningStatus | default('')) == 'guestToolsRunning' }}"
+    vm_no_cdrom_mounted: "{{ mounted_cdroms | length == 0 }}""
+
+
 - name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
   ansible.builtin.set_fact:
-    vm_facts: "{{ vm_facts.guests[0] | default('none found') }}"
+  vm_facts: "{{ vm_facts.guests[0] | default('none found') }}"
 
 - name: "{{ role_name }} | vmware | Display Gather VM facts from vsphere"
   ansible.builtin.debug:
     msg:
-      - "vm_facts: {{ vm_facts | default('Facts not available') }}"
-      - "valid_power_states: {{ valid_power_states | default('not available') }}"
-      - "vm_power_state: {{ vm_facts.guests.hw_power_status | default('not available') }}"
-      - "vm_facts.guests.advanced_settings: {{ vm_facts.guests.advanced_settings | default('not available') }}"
+    - "vm_facts: {{ vm_facts | default('Facts not available') }}"
+    - "valid_power_states: {{ valid_power_states | default('not available') }}"
+    - "vm_power_state: {{ vm_facts.guests.hw_power_status | default('not available') }}"
+    - "vm_facts.guests.advanced_settings: {{ vm_facts.guests.advanced_settings | default('not available') }}"
 
   when: mtv_tt_debug | default(False) | bool
